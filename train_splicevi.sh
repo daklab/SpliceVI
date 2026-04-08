@@ -46,14 +46,14 @@ MODEL_DIR_BASE="models"
 SCRIPT_PATH="train_splicevi.py"
 
 # Batch column in obs; set to "None" to disable batch correction
-BATCH_KEY="None"
+BATCH_KEY="mouse.id"
 
 # 2) Conda / environment
 CONDA_BASE="/gpfs/commons/home/svaidyanathan/miniconda3"
 ENV_NAME="splicevi-env"
 
 # 3) Core hyperparameters
-MAX_EPOCHS=1          # Total training epochs
+MAX_EPOCHS=800          # Total training epochs
 LR=1e-5                 # Learning rate
 BATCH_SIZE=256          # Minibatch size
 N_EPOCHS_KL_WARMUP=200  # KL warmup epochs

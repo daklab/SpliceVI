@@ -65,7 +65,7 @@ python train_splicevi.py --help
 python eval_splicevi.py --help
 ```
 
-Future additions:
+### Future additions:
 - [ ] Add `tutorial.ipynb` for a walkthrough of model setup, training, and application to other datasets.
 - [ ] Add trained models to Hugging Face
 ---

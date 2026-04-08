@@ -40,10 +40,7 @@ TEST_MDATA_PATH="/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/MOUS
 
 
 MASKED_TEST_MDATA_PATHS="\
-/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/EasySci2024/LeafletFA/resampled/RESAMPLED_25_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406_UPDATEDOBS.h5mu
-/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/EasySci2024/LeafletFA/resampled/RESAMPLED_50_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406_UPDATEDOBS.h5mu
-/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/EasySci2024/LeafletFA/resampled/RESAMPLED_75_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406_UPDATEDOBS.h5mu
-/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/EasySci2024/LeafletFA/resampled/RESAMPLED_90_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406_UPDATEDOBS.h5mu"
+/gpfs/commons/groups/knowles_lab/Karin/Leaflet-analysis-WD/EasySci2024/LeafletFA/resampled/RESAMPLED_0.5_PERCENT_test_30_70_model_ready_combined_gene_expression_aligned_splicing_20251009_024406_UPDATEDOBS.h5mu"
 
 # Set to "true" if MASKED_TEST_MDATA_PATHS are multinomial-resampled files
 # (produced by multinomial_resampling_masking.py). Evaluation will use
@@ -59,15 +56,15 @@ IMPUTE_FILTER_BOUNDARY_PSI="true"
 # Minimum original ATSE count (cell_by_cluster_matrix_original) required to
 # include a junction-cell entry in the imputation eval.
 # Set to -1 to disable this filter.
-MIN_ATSE_COUNT=15
+MIN_ATSE_COUNT=100
 
 # 2) Single model directory to evaluate
 
-MODEL_DIR="models/splicevi_basic_20260225_050010"  #non linear (yes batch key) with no ReLU
+MODEL_DIR="models/splicevi_basic_20260316_193250"  #non linear (no batch key) with no ReLU
 
 
 # 2.5) Batch key used during training (set to "None" to disable)
-BATCH_KEY="mouse.id"
+BATCH_KEY="None"
 # 3) Evaluation blocks to run
 # These must match argparse in eval_splicevi.py (nargs="+")
 EVALS=(

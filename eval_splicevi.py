@@ -1071,15 +1071,24 @@ def main():
             umap_obs_keys.append(umap_color_key)
         print(f"[UMAP] UMAP obs keys not provided; using defaults: {umap_obs_keys}")
 
-    # Latent spaces
-    print("[MODEL] Computing latent representations on TRAIN for UMAP...")
-    latent_spaces_train = {
-        "joint": model.get_latent_representation(),
-        "expression": model.get_latent_representation(modality="expression"),
-        "splicing": model.get_latent_representation(modality="splicing"),
-    }
-    for name, Z in latent_spaces_train.items():
-        print(f"[MODEL] TRAIN latent '{name}' shape: {Z.shape}")
+    # Latent spaces (TRAIN)
+    # Required by: umap, clustering, train_eval, cross_fold_classification (train split)
+    _need_train_latent = bool(
+        EVALS & {"umap", "clustering", "train_eval"}
+        or ("cross_fold_classification" in EVALS and run_crossfold_train)
+    )
+    latent_spaces_train = {}
+    if _need_train_latent:
+        print("[MODEL] Computing latent representations on TRAIN...")
+        latent_spaces_train = {
+            "joint": model.get_latent_representation(),
+            "expression": model.get_latent_representation(modality="expression"),
+            "splicing": model.get_latent_representation(modality="splicing"),
+        }
+        for name, Z in latent_spaces_train.items():
+            print(f"[MODEL] TRAIN latent '{name}' shape: {Z.shape}")
+    else:
+        print("[MODEL] Skipping TRAIN latent computation (not requested).")
 
     # -----------------------------------------------------------------
     # UMAP evaluation (TRAIN)
@@ -1828,13 +1837,15 @@ def main():
                         mask_data = junc_ratio_orig.data > 0.0
                     bin_mask = sparse.csr_matrix(
                         (mask_data.astype(np.float32),
-                         junc_ratio_orig.indices,
-                         junc_ratio_orig.indptr),
+                         junc_ratio_orig.indices.copy(),
+                         junc_ratio_orig.indptr.copy()),
                         shape=junc_ratio_orig.shape,
                     )
                     if not sparse.isspmatrix_csr(bin_mask):
                         bin_mask = sparse.csr_matrix(bin_mask)
+                    bin_mask.eliminate_zeros()
                     masked_orig = junc_ratio_orig
+                    
 
                     if args.impute_filter_boundary_psi:
                         print(
