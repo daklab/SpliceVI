@@ -744,9 +744,9 @@ class SPLICEVAE(BaseModuleClass):
         decoder_input_spl  = _attach_cont(dec_in_spl) if self.splicing_decoder_architecture == "vanilla" else dec_in_spl
         
 
-        if torch.rand(1).item() < 0.01: 
-            print(f"expression input {decoder_input_expr}")
-            print(f"splicing input {decoder_input_spl}")
+        # if torch.rand(1).item() < 0.01: 
+        #     print(f"expression input {decoder_input_expr}")
+        #     print(f"splicing input {decoder_input_spl}")
 
         # Splicing
         if self.splicing_decoder_architecture == "vanilla":
@@ -754,6 +754,29 @@ class SPLICEVAE(BaseModuleClass):
         else:
             p_s_logits = self.z_decoder_splicing(dec_in_spl, batch_index, *categorical_input, cont=cont_covs)
             p_s = torch.sigmoid(p_s_logits)
+
+        # For DM, group-softmax p_s so that junctions within each ATSE sum to 1.
+        # This makes generative_outputs["p"] a valid probability simplex per group,
+        # which is required for correct interpretation in get_normalized_splicing*
+        # and ensures the DM posterior mean formula is properly calibrated.
+        # The loss is unaffected since the DM likelihood normalizes implicitly.
+        if self.splicing_loss_type == "dirichlet_multinomial":
+            logits = torch.log(p_s) - torch.log1p(-p_s)
+            lse = group_logsumexp(self.junc2atse, logits)          # (N, G)
+            log_pi = subtract_group_logsumexp(self.junc2atse, logits, lse)  # (N, J)
+            p_s = torch.exp(log_pi)                                # comment out this line to test without group-softmax
+
+            if self.training and torch.rand(1).item() < 0.01:
+                idx_j, idx_g = self.junc2atse.indices()
+                g = int(torch.randint(int(idx_g.max()) + 1, (1,)).item())
+                junc_ids = idx_j[idx_g == g]
+                cell = int(torch.randint(p_s.size(0), (1,)).item())
+                group_sum = p_s[cell, junc_ids].sum().item()
+                print(
+                    f"[generative sanity] cell={cell}  atse={g}  "
+                    f"n_junctions={len(junc_ids)}  "
+                    f"p_s sum={group_sum:.6f}  (should be ~1.0)"
+                )
 
         # Expression
         px_scale, _, px_rate, px_dropout = self.z_decoder_expression(
