@@ -761,7 +761,11 @@ class SPLICEVAE(BaseModuleClass):
         # and ensures the DM posterior mean formula is properly calibrated.
         # The loss is unaffected since the DM likelihood normalizes implicitly.
         if self.splicing_loss_type == "dirichlet_multinomial":
-            logits = torch.log(p_s) - torch.log1p(-p_s)
+            # Clamp before inverse-sigmoid so saturated sigmoid outputs (exactly 0 or 1
+            # in float32, common with linear decoders) don't produce ±inf logits, which
+            # cause nan via inf - inf in the group log-sum-exp.
+            p_s_clamped = p_s.clamp(1e-6, 1 - 1e-6)
+            logits = torch.log(p_s_clamped) - torch.log1p(-p_s_clamped)
             lse = group_logsumexp(self.junc2atse, logits)          # (N, G)
             log_pi = subtract_group_logsumexp(self.junc2atse, logits, lse)  # (N, J)
             p_s = torch.exp(log_pi)                                # comment out this line to test without group-softmax
