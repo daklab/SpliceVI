@@ -949,15 +949,15 @@
 <tbody>
 <tr>
 <td><code>get_latent_representation()</code></td>
-<td>Joint latent $z$ — mixed from both modalities</td>
+<td>Joint latent <span class="arithmatex">\(z\)</span> — mixed from both modalities</td>
 </tr>
 <tr>
 <td><code>get_latent_representation(modality="expression")</code></td>
-<td>Expression-only posterior mean $\mu_e$</td>
+<td>Expression-only posterior mean <span class="arithmatex">\(\mu_e\)</span></td>
 </tr>
 <tr>
 <td><code>get_latent_representation(modality="splicing")</code></td>
-<td>Splicing-only posterior mean $\mu_s$</td>
+<td>Splicing-only posterior mean <span class="arithmatex">\(\mu_s\)</span></td>
 </tr>
 </tbody>
 </table>
@@ -983,7 +983,7 @@
 <p>To obtain imputed junction usage probabilities (PSI) from the splicing decoder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">psi</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_normalized_splicing</span><span class="p">()</span>   <span class="c1"># (cells × junctions)</span>
 </code></pre></div>
-<p>These are the posterior mean predictions $\mathbb{E}[p_j | z]$ and can be used for visualization or as input to downstream differential splicing analyses.</p>
+<p>These are the posterior mean predictions <span class="arithmatex">\(\mathbb{E}[p_j | z]\)</span> and can be used for visualization or as input to downstream differential splicing analyses.</p>
 
 
 
@@ -1043,6 +1043,10 @@
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

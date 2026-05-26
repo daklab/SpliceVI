@@ -1341,9 +1341,9 @@
 <h3 id="splicing-encoder">Splicing encoder</h3>
 <p>Because splicing observations are highly sparse — many junctions are unobserved in a given cell — SpliceVI uses a <strong>missingness-aware partial encoder</strong> (<code>PartialEncoderEDDI</code>). The design draws inspiration from the <a href="https://arxiv.org/abs/1809.11142">EDDI framework</a> (Ma et al., 2019), which handles pervasive missing values in VAEs using feature embeddings and exchangeable neural networks (see also the <a href="https://www.biorxiv.org/content/10.1101/2025.11.26.690853v1">SpliceVI preprint</a>). The encoder:</p>
 <ol>
-<li>Embeds each <em>observed</em> junction independently via a shared $h$ network</li>
+<li>Embeds each <em>observed</em> junction independently via a shared <span class="arithmatex">\(h\)</span> network</li>
 <li>Pools the per-junction embeddings (mean or sum) across all observed junctions in a cell</li>
-<li>Maps the pooled representation through an MLP to produce posterior statistics $(\mu, \sigma^2)$</li>
+<li>Maps the pooled representation through an MLP to produce posterior statistics <span class="arithmatex">\((\mu, \sigma^2)\)</span></li>
 </ol>
 <p>This avoids any imputation of missing values at the input level and is more principled than masking or zero-filling.</p>
 <h3 id="splicing-likelihood">Splicing likelihood</h3>
@@ -1362,7 +1362,7 @@
 </tr>
 <tr>
 <td><code>beta_binomial</code></td>
-<td>Beta-binomial with a learned per-junction concentration $\phi_j$</td>
+<td>Beta-binomial with a learned per-junction concentration <span class="arithmatex">\(\phi_j\)</span></td>
 </tr>
 <tr>
 <td><code>dirichlet_multinomial</code></td>
@@ -1476,7 +1476,7 @@
 <tr>
 <td><code>h_hidden_dim</code></td>
 <td>64</td>
-<td>Hidden width of per-junction $h$ network</td>
+<td>Hidden width of per-junction <span class="arithmatex">\(h\)</span> network</td>
 </tr>
 <tr>
 <td><code>encoder_hidden_dim</code></td>
@@ -3991,6 +3991,10 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>

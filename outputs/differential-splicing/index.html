@@ -1102,21 +1102,21 @@
 <ol>
 <li><strong>Sample normalized values</strong> from the posterior for each cell in group 1 and group 2 separately, by passing cells through the encoder and then the relevant decoder (expression or splicing)</li>
 <li><strong>Compute a per-feature effect size</strong> from those posterior samples</li>
-<li><strong>Estimate the posterior probability</strong> that the effect size exceeds a threshold $\delta$ (the <code>"change"</code> mode)</li>
+<li><strong>Estimate the posterior probability</strong> that the effect size exceeds a threshold <span class="arithmatex">\(\delta\)</span> (the <code>"change"</code> mode)</li>
 </ol>
 <p>The per-feature Bayes factor is then:</p>
-<p>$$
+<div class="arithmatex">\[
 \text{BF} = \log \frac{P(|\Delta| &gt; \delta \mid \text{data})}{P(|\Delta| \leq \delta \mid \text{data})}
-$$</p>
+\]</div>
 <p>An FDR-controlled call of differential features is made using a target FDR threshold (default 5%).</p>
 <hr />
 <h2 id="differential-expression">Differential Expression</h2>
 <p>DE compares <strong>normalized gene expression</strong> between two groups. The model function is <code>get_normalized_expression</code>, which returns scaled expression values (analogous to scVI's normalized expression).</p>
 <p>The <strong>effect size</strong> follows the standard scVI convention — a log-fold change:</p>
-<p>$$
+<div class="arithmatex">\[
 \text{LFC} = \log_2(\hat{x}_2 + \epsilon) - \log_2(\hat{x}_1 + \epsilon)
-$$</p>
-<p>where $\hat{x}_g$ is the posterior mean normalized expression for gene $g$ in group $g$.</p>
+\]</div>
+<p>where <span class="arithmatex">\(\hat{x}_g\)</span> is the posterior mean normalized expression for gene <span class="arithmatex">\(g\)</span> in group <span class="arithmatex">\(g\)</span>.</p>
 <h3 id="usage">Usage</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="n">de_results</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">differential_expression</span><span class="p">(</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="n">adata</span><span class="o">=</span><span class="n">mdata</span><span class="p">,</span>
@@ -1129,24 +1129,24 @@ $$</p>
 </code></pre></div>
 <hr />
 <h2 id="differential-splicing">Differential Splicing</h2>
-<p>DS compares <strong>junction usage (PSI)</strong> between two groups. Because PSI is already on a $[0, 1]$ probability scale, the effect size is a <strong>direct difference</strong> rather than a log-fold change — analogous to how ATAC-seq accessibility scores are handled in scvi-tools:</p>
-<p>$$
+<p>DS compares <strong>junction usage (PSI)</strong> between two groups. Because PSI is already on a <span class="arithmatex">\([0, 1]\)</span> probability scale, the effect size is a <strong>direct difference</strong> rather than a log-fold change — analogous to how ATAC-seq accessibility scores are handled in scvi-tools:</p>
+<div class="arithmatex">\[
 \text{effect size} = \hat{\psi}^{(2)}_j - \hat{\psi}^{(1)}_j
-$$</p>
-<p>where $\hat{\psi}^{(k)}_j$ is the posterior mean PSI for junction $j$ in group $k$.</p>
+\]</div>
+<p>where <span class="arithmatex">\(\hat{\psi}^{(k)}_j\)</span> is the posterior mean PSI for junction <span class="arithmatex">\(j\)</span> in group <span class="arithmatex">\(k\)</span>.</p>
 <h3 id="normalized-psi-dm-posterior-mean">Normalized PSI: DM posterior mean</h3>
-<p>By default (<code>norm_splicing_function="dm_posterior_mean"</code>), the model uses a <strong>Dirichlet-Multinomial posterior mean</strong> estimate of PSI rather than the raw decoder output. This smooths the decoder's predicted PSI toward the observed data using the learned concentration parameter $c$:</p>
-<p>$$
+<p>By default (<code>norm_splicing_function="dm_posterior_mean"</code>), the model uses a <strong>Dirichlet-Multinomial posterior mean</strong> estimate of PSI rather than the raw decoder output. This smooths the decoder's predicted PSI toward the observed data using the learned concentration parameter <span class="arithmatex">\(c\)</span>:</p>
+<div class="arithmatex">\[
 \psi^*_j = \frac{c \cdot p_j + y_j}{c + n_j}
-$$</p>
+\]</div>
 <p>where:</p>
 <ul>
-<li>$p_j$ — decoder-predicted PSI for junction $j$</li>
-<li>$y_j$ — observed junction read count for that cell</li>
-<li>$n_j$ — observed ATSE total read count for that junction's event</li>
-<li>$c$ — learned concentration (either a scalar or per-ATSE, controlled by <code>dm_concentration</code>)</li>
+<li><span class="arithmatex">\(p_j\)</span> — decoder-predicted PSI for junction <span class="arithmatex">\(j\)</span></li>
+<li><span class="arithmatex">\(y_j\)</span> — observed junction read count for that cell</li>
+<li><span class="arithmatex">\(n_j\)</span> — observed ATSE total read count for that junction's event</li>
+<li><span class="arithmatex">\(c\)</span> — learned concentration (either a scalar or per-ATSE, controlled by <code>dm_concentration</code>)</li>
 </ul>
-<p>When <code>dm_concentration="atse"</code>, $c$ is a per-ATSE value mapped to per-junction via the ATSE membership matrix. This gives a data-adaptive shrinkage: cells with high read coverage are pulled toward their observations, while cells with low coverage rely more on the decoder's prediction.</p>
+<p>When <code>dm_concentration="atse"</code>, <span class="arithmatex">\(c\)</span> is a per-ATSE value mapped to per-junction via the ATSE membership matrix. This gives a data-adaptive shrinkage: cells with high read coverage are pulled toward their observations, while cells with low coverage rely more on the decoder's prediction.</p>
 <p>Alternatively, you can use the raw decoder output with <code>norm_splicing_function="decoder"</code>.</p>
 <h3 id="usage_1">Usage</h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">ds_results</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">differential_splicing</span><span class="p">(</span>
@@ -1182,11 +1182,11 @@ $$</p>
 </tr>
 <tr>
 <td><code>effect_size</code></td>
-<td>$\hat{\psi}^{(2)} - \hat{\psi}^{(1)}$ (model posterior means)</td>
+<td><span class="arithmatex">\(\hat{\psi}^{(2)} - \hat{\psi}^{(1)}\)</span> (model posterior means)</td>
 </tr>
 <tr>
 <td><code>emp_effect</code></td>
-<td>Empirical $\bar{\psi}^{(2)} - \bar{\psi}^{(1)}$ from observed PSI values</td>
+<td>Empirical <span class="arithmatex">\(\bar{\psi}^{(2)} - \bar{\psi}^{(1)}\)</span> from observed PSI values</td>
 </tr>
 <tr>
 <td><code>est_prob1</code> / <code>est_prob2</code></td>
@@ -1268,6 +1268,10 @@ $$</p>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"></script>
       
     
   </body>
