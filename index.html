@@ -434,10 +434,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#splicing-analysis-ecosystem" class="md-nav__link">
+  <a href="#ecosystem-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Splicing analysis ecosystem
+        Ecosystem overview
       
     </span>
   </a>
@@ -445,10 +445,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#quick-install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key features
+        Quick install
       
     </span>
   </a>
@@ -456,21 +456,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#minimal-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick start
+        Minimal example
       
     </span>
   </a>
@@ -922,10 +911,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#splicing-analysis-ecosystem" class="md-nav__link">
+  <a href="#ecosystem-overview" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Splicing analysis ecosystem
+        Ecosystem overview
       
     </span>
   </a>
@@ -933,10 +922,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#key-features" class="md-nav__link">
+  <a href="#quick-install" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key features
+        Quick install
       
     </span>
   </a>
@@ -944,21 +933,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#installation" class="md-nav__link">
+  <a href="#minimal-example" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Installation
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#quick-start" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Quick start
+        Minimal example
       
     </span>
   </a>
@@ -997,11 +975,9 @@
 
 
 <h1 id="splicevi">SpliceVI</h1>
-<p><strong>Multimodal VAE for joint modeling of alternative splicing and gene expression from single-cell data.</strong></p>
-<p>SpliceVI learns a shared latent representation from paired (or unpaired) gene expression and alternative splicing (junction usage / PSI) measurements. It is built on <a href="https://github.com/scverse/scvi-tools">scvi-tools</a> and designed to handle the high missingness and count-based structure of splicing data in single-cell experiments.</p>
-<hr />
-<h2 id="splicing-analysis-ecosystem">Splicing analysis ecosystem</h2>
-<p>SpliceVI is part of a suite of tools from the <a href="https://daklab.github.io/">Knowles Lab</a> that share a common intermediate format — <strong>SplicingDataset</strong> — so data prepared for one tool works directly with the others.</p>
+<p>SpliceVI is a multimodal variational autoencoder that jointly models <strong>gene expression</strong> and <strong>alternative splicing</strong> (junction usage / PSI) from single-cell data. It learns a shared low-dimensional latent representation from paired or unpaired measurements across both modalities, enabling clustering, trajectory inference, imputation, and differential expression and splicing analysis.</p>
+<h2 id="ecosystem-overview">Ecosystem overview</h2>
+<p>Three tools form the splicing analysis ecosystem. They share a common intermediate format, <strong>SplicingDataset</strong>, so you can swap models without reformatting data.</p>
 <pre class="mermaid"><code>flowchart TD
     A[BAM files per cell] --&gt; B[regtools junction extract]
     B --&gt; C[ATSEmapper]
@@ -1040,42 +1016,31 @@
 </tr>
 </tbody>
 </table>
-<hr />
-<h2 id="key-features">Key features</h2>
-<ul>
-<li>Joint encoder–decoder architecture with separate branches for gene expression and splicing</li>
-<li>Handles <strong>missing splicing observations</strong> per cell via a missingness-aware partial encoder</li>
-<li>Flexible splicing likelihoods: <strong>Binomial</strong>, <strong>Beta-Binomial</strong>, and <strong>Dirichlet-Multinomial</strong></li>
-<li>Multiple modality mixing strategies (equal, universal, per-cell, concatenate)</li>
-<li>Built-in support for batch correction, covariates, and differential splicing analysis</li>
-</ul>
-<hr />
-<h2 id="installation">Installation</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>splicevi-env<span class="w"> </span><span class="nv">python</span><span class="o">=</span><span class="m">3</span>.12
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>conda<span class="w"> </span>activate<span class="w"> </span>splicevi-env
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/daklab/SpliceVI.git
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nb">cd</span><span class="w"> </span>SpliceVI
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+<p>ATSEmapper is the bridge between the bulk-sequencing infrastructure most labs already run and the single-cell-native format both LeafletFA and SpliceVI consume.</p>
+<h2 id="quick-install">Quick install</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/daklab/SpliceVI.git
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>SpliceVI
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
 </code></pre></div>
-<p>For Weights &amp; Biases logging:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip<span class="w"> </span>install<span class="w"> </span>wandb
+<h2 id="minimal-example">Minimal example</h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">mudata</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splicevi</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPLICEVI</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="n">mdata</span> <span class="o">=</span> <span class="n">mudata</span><span class="o">.</span><span class="n">read_h5mu</span><span class="p">(</span><span class="s2">&quot;train_data.h5mu&quot;</span><span class="p">)</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">mdata</span><span class="p">,</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">rna_layer</span><span class="o">=</span><span class="s2">&quot;length_norm&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    <span class="n">batch_key</span><span class="o">=</span><span class="s2">&quot;mouse.id&quot;</span><span class="p">,</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="p">)</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">n_latent</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">max_epochs</span><span class="o">=</span><span class="mi">800</span><span class="p">)</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="n">latent</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">()</span>   <span class="c1"># (cells × n_latent) joint latent space</span>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="n">psi</span>    <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_normalized_splicing</span><span class="p">()</span>     <span class="c1"># (cells × junctions) imputed PSI values</span>
 </code></pre></div>
-<hr />
-<h2 id="quick-start">Quick start</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">mudata</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">splicevi</span><span class="w"> </span><span class="kn">import</span> <span class="n">SPLICEVI</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">mdata</span> <span class="o">=</span> <span class="n">mudata</span><span class="o">.</span><span class="n">read_h5mu</span><span class="p">(</span><span class="s2">&quot;your_data.h5mu&quot;</span><span class="p">)</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">n_latent</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">max_epochs</span><span class="o">=</span><span class="mi">400</span><span class="p">)</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">latent</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">()</span>
-</code></pre></div>
-<hr />
+<p>See <a href="models/splicevi/">SpliceVI model</a> for the full parameter reference and <a href="data-format/">SpliceVI MuData Object</a> for the expected input structure.</p>
 <h2 id="citation">Citation</h2>
 <p>If you use SpliceVI, please cite:</p>
 <blockquote>
