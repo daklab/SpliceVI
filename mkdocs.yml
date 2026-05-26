@@ -1,0 +1,60 @@
+site_name: SpliceVI
+site_description: Multimodal VAE for Joint Modeling of Alternative Splicing and Gene Expression
+site_url: https://daklab.github.io/SpliceVI
+repo_url: https://github.com/daklab/SpliceVI
+repo_name: daklab/SpliceVI
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: green
+      accent: light green
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            docstring_style: numpy
+            show_root_heading: true
+            heading_level: 3
+            show_signature_annotations: false
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Data Format: data-format.md
+  - Models:
+    - SpliceVI: models/splicevi.md
+    - EDDISPLICE: models/eddisplice.md
+  - Outputs:
+    - Latent Space: outputs/latent.md
+    - Differential Expression & Splicing: outputs/differential-splicing.md
+  - API Reference:
+    - SPLICEVI: api/splicevi.md
+    - SPLICEVAE: api/splicevae.md
