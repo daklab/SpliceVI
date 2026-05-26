@@ -1,14 +1,10 @@
 # SpliceVI
 
-**Multimodal VAE for joint modeling of alternative splicing and gene expression from single-cell data.**
+SpliceVI is a multimodal variational autoencoder that jointly models **gene expression** and **alternative splicing** (junction usage / PSI) from single-cell data. It learns a shared low-dimensional latent representation from paired or unpaired measurements across both modalities, enabling clustering, trajectory inference, imputation, and differential expression and splicing analysis.
 
-SpliceVI learns a shared latent representation from paired (or unpaired) gene expression and alternative splicing (junction usage / PSI) measurements. It is built on [scvi-tools](https://github.com/scverse/scvi-tools) and designed to handle the high missingness and count-based structure of splicing data in single-cell experiments.
+## Ecosystem overview
 
----
-
-## Splicing analysis ecosystem
-
-SpliceVI is part of a suite of tools from the [Knowles Lab](https://daklab.github.io/) that share a common intermediate format — **SplicingDataset** — so data prepared for one tool works directly with the others.
+Three tools form the splicing analysis ecosystem. They share a common intermediate format, **SplicingDataset**, so you can swap models without reformatting data.
 
 ```mermaid
 flowchart TD
@@ -27,54 +23,38 @@ flowchart TD
 | **LeafletFA** | Beta-Dirichlet factor model for splicing programs | [daklab/LeafletFA](https://github.com/daklab/LeafletFA) | [docs](https://daklab.github.io/LeafletFA) |
 | **SpliceVI** | Multimodal VAE (splicing + gene expression) | [daklab/SpliceVI](https://github.com/daklab/SpliceVI) | this site |
 
----
+ATSEmapper is the bridge between the bulk-sequencing infrastructure most labs already run and the single-cell-native format both LeafletFA and SpliceVI consume.
 
-## Key features
-
-- Joint encoder–decoder architecture with separate branches for gene expression and splicing
-- Handles **missing splicing observations** per cell via a missingness-aware partial encoder
-- Flexible splicing likelihoods: **Binomial**, **Beta-Binomial**, and **Dirichlet-Multinomial**
-- Multiple modality mixing strategies (equal, universal, per-cell, concatenate)
-- Built-in support for batch correction, covariates, and differential splicing analysis
-
----
-
-## Installation
+## Quick install
 
 ```bash
-conda create -n splicevi-env python=3.12
-conda activate splicevi-env
-
 git clone https://github.com/daklab/SpliceVI.git
 cd SpliceVI
 pip install -e .
 ```
 
-For Weights & Biases logging:
-
-```bash
-pip install wandb
-```
-
----
-
-## Quick start
+## Minimal example
 
 ```python
 import mudata
 from splicevi import SPLICEVI
 
-mdata = mudata.read_h5mu("your_data.h5mu")
+mdata = mudata.read_h5mu("train_data.h5mu")
 
-SPLICEVI.setup_mudata(mdata, ...)
+SPLICEVI.setup_mudata(
+    mdata,
+    rna_layer="length_norm",
+    batch_key="mouse.id",
+)
 
 model = SPLICEVI(mdata, n_latent=30)
-model.train(max_epochs=400)
+model.train(max_epochs=800)
 
-latent = model.get_latent_representation()
+latent = model.get_latent_representation()   # (cells × n_latent) joint latent space
+psi    = model.get_normalized_splicing()     # (cells × junctions) imputed PSI values
 ```
 
----
+See [SpliceVI model](models/splicevi.md) for the full parameter reference and [SpliceVI MuData Object](data-format.md) for the expected input structure.
 
 ## Citation
 
