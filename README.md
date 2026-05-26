@@ -2,6 +2,8 @@
 
 Multimodal VAE for joint modeling of alternative splicing (PSI) and gene expression from single-cell data. Built on [scvi-tools](https://github.com/scverse/scvi-tools).
 
+[SpliceVI Docs](https://daklab.github.io/SpliceVI/)
+
 ---
 
 ## Installation
