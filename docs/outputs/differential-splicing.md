@@ -26,17 +26,15 @@ An FDR-controlled call of differential features is made using a target FDR thres
 
 ## Differential Expression
 
-DE compares **normalized gene expression** between two groups. The model function is `get_normalized_expression`, which returns scaled expression values (analogous to scVI's normalized expression).
+DE compares **normalized gene expression** between two groups using `get_normalized_expression` (see [Imputed Splicing & Expression](imputed.md)).
 
 The **effect size** follows the standard scVI convention — a log-fold change:
 
 $$
-\text{LFC} = \log_2(\hat{x}_2 + \epsilon) - \log_2(\hat{x}_1 + \epsilon)
+\text{LFC} = \log_2(\hat{x}^{(2)}_g + \epsilon) - \log_2(\hat{x}^{(1)}_g + \epsilon)
 $$
 
-where $\hat{x}_g$ is the posterior mean normalized expression for gene $g$ in group $g$.
-
-### Usage
+where $\hat{x}^{(k)}_g$ is the posterior mean normalized expression for gene $g$ in group $k$.
 
 ```python
 de_results = model.differential_expression(
@@ -44,7 +42,7 @@ de_results = model.differential_expression(
     groupby="cell_type",
     group1="Neuron",
     group2="Astrocyte",
-    delta=0.25,        # minimum LFC to consider "DE"
+    delta=0.25,
     fdr_target=0.05,
 )
 ```
@@ -59,28 +57,7 @@ $$
 \text{effect size} = \hat{\psi}^{(2)}_j - \hat{\psi}^{(1)}_j
 $$
 
-where $\hat{\psi}^{(k)}_j$ is the posterior mean PSI for junction $j$ in group $k$.
-
-### Normalized PSI: DM posterior mean
-
-By default (`norm_splicing_function="dm_posterior_mean"`), the model uses a **Dirichlet-Multinomial posterior mean** estimate of PSI rather than the raw decoder output. This smooths the decoder's predicted PSI toward the observed data using the learned concentration parameter $c$:
-
-$$
-\psi^*_j = \frac{c \cdot p_j + y_j}{c + n_j}
-$$
-
-where:
-
-- $p_j$ — decoder-predicted PSI for junction $j$
-- $y_j$ — observed junction read count for that cell
-- $n_j$ — observed ATSE total read count for that junction's event
-- $c$ — learned concentration (either a scalar or per-ATSE, controlled by `dm_concentration`)
-
-When `dm_concentration="atse"`, $c$ is a per-ATSE value mapped to per-junction via the ATSE membership matrix. This gives a data-adaptive shrinkage: cells with high read coverage are pulled toward their observations, while cells with low coverage rely more on the decoder's prediction.
-
-Alternatively, you can use the raw decoder output with `norm_splicing_function="decoder"`.
-
-### Usage
+where $\hat{\psi}^{(k)}_j$ is the posterior mean PSI for junction $j$ in group $k$, computed using the [DM posterior mean](imputed.md#dm-normalized-splicing-posterior-mean-psi) by default (`norm_splicing_function="dm_posterior_mean"`). You can switch to the raw decoder output with `norm_splicing_function="decoder"`.
 
 ```python
 ds_results = model.differential_splicing(
@@ -88,7 +65,7 @@ ds_results = model.differential_splicing(
     groupby="cell_type",
     group1="Neuron",
     group2="Astrocyte",
-    delta=0.10,         # minimum ΔPSI to consider "DS"
+    delta=0.10,
     fdr_target=0.05,
     norm_splicing_function="dm_posterior_mean",   # recommended
 )
@@ -111,6 +88,5 @@ ds_results = model.differential_splicing(
 
 ## Notes
 
-- Junctions unobserved in all cells of a group will have `emp_prob = -1` (sentinel for missing)
 - Very sparse junctions (low `n_obs_group1/2`) will have wider posteriors — consider filtering before interpretation
 - Both methods support `batch_correction=True` to marginalize over batch effects when comparing groups

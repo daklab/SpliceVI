@@ -60,6 +60,7 @@ nav:
     - EDDISPLICE: models/eddisplice.md
   - Outputs:
     - Latent Space: outputs/latent.md
+    - Imputed Splicing & Expression: outputs/imputed.md
     - Differential Expression & Splicing: outputs/differential-splicing.md
   - API Reference:
     - SPLICEVI: api/splicevi.md
