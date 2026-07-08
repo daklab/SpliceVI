@@ -35,8 +35,10 @@ import matplotlib.cm as cm
 import seaborn as sns
 
 from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.linear_model import LogisticRegression, RidgeCV
+from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.metrics import (
@@ -54,6 +56,7 @@ from scipy.stats import spearmanr, ttest_rel
 from tqdm.auto import tqdm
 
 from splicevi import SPLICEVI
+from splicevi.mean_bayes import MeanBayes
 
 import gc
 import re
@@ -390,6 +393,8 @@ def run_cross_fold_classification(
     metrics: List[str],
     fig_dir: str,
     wandb=None,
+    do_dummy: bool = False,
+    do_label_permute: bool = False,
 ):
     """
     K-fold classification for multiple obs targets across latent spaces.
@@ -588,6 +593,136 @@ def run_cross_fold_classification(
                                 }
                             )
 
+                    # ── Label-permuted baseline ───────────────────────────────
+                    if do_label_permute:
+                        print(
+                            f"[CROSS-FOLD] {split_name} | {target} | {clf_name}_label_perm | "
+                            f"{space_name} | fold {fold_idx}: fitting on permuted train labels...",
+                            flush=True,
+                        )
+                        rng_perm = np.random.default_rng(42 + fold_idx)
+                        y_tr_perm = rng_perm.permutation(y[tr_idx])
+                        clf_perm = build_classifier(clf_name)
+                        clf_perm.fit(Z[tr_idx], y_tr_perm)
+                        y_pred_perm = clf_perm.predict(Z[ev_idx])
+                        # evaluate against REAL held-out labels — model should fail here
+                        for perm_metric_name, perm_metric_fn in metric_fns.items():
+                            score_perm = float(perm_metric_fn(y_true, y_pred_perm))
+                            fold_scores.setdefault(
+                                (f"{clf_name}_label_perm", perm_metric_name, space_name), []
+                            ).append(score_perm)
+
+                            # Per-class scores for the permuted run
+                            if perm_metric_name == "f1_weighted":
+                                pcs_perm = f1_score(
+                                    y_true, y_pred_perm, average=None,
+                                    labels=label_order, zero_division=0,
+                                )
+                            elif perm_metric_name == "precision_weighted":
+                                pcs_perm = precision_score(
+                                    y_true, y_pred_perm, average=None,
+                                    labels=label_order, zero_division=0,
+                                )
+                            elif perm_metric_name == "recall_weighted":
+                                pcs_perm = recall_score(
+                                    y_true, y_pred_perm, average=None,
+                                    labels=label_order, zero_division=0,
+                                )
+                            else:  # accuracy
+                                pcs_perm = []
+                                for lbl in label_order:
+                                    m_perm = y_true == lbl
+                                    if m_perm.any():
+                                        pcs_perm.append(float((y_pred_perm[m_perm] == lbl).mean()))
+                                    else:
+                                        pcs_perm.append(np.nan)
+
+                            for lbl, cls_score_perm in zip(label_order, pcs_perm):
+                                CROSS_FOLD_CLASS_RECORDS.append(
+                                    {
+                                        "split": split_name,
+                                        "target": target,
+                                        "classifier": f"{clf_name}_label_perm",
+                                        "space": space_name,
+                                        "metric": perm_metric_name,
+                                        "fold": int(fold_idx),
+                                        "obs_category": lbl,
+                                        "value": (
+                                            float(cls_score_perm)
+                                            if not np.isnan(cls_score_perm)
+                                            else np.nan
+                                        ),
+                                        "n_eval_for_class": int((y_true == lbl).sum()),
+                                    }
+                                )
+
+            # ── Dummy-classifier baseline (one pass per space, ignores features) ──
+            if do_dummy:
+                print(
+                    f"\n[CROSS-FOLD] {split_name} | {target} | dummy | {space_name}: "
+                    f"running DummyClassifier(strategy='prior') over {k_use} folds...",
+                    flush=True,
+                )
+                for fold_idx, (tr_idx, ev_idx) in enumerate(splits):
+                    dummy_clf = DummyClassifier(strategy="prior", random_state=42 + fold_idx)
+                    dummy_clf.fit(Z[tr_idx], y[tr_idx])   # Z is ignored internally
+                    y_pred_dummy = dummy_clf.predict(Z[ev_idx])
+                    y_true_dummy = y[ev_idx]
+                    print(
+                        f"[CROSS-FOLD] {split_name} | {target} | dummy | "
+                        f"{space_name} | fold {fold_idx}: done.",
+                        flush=True,
+                    )
+                    for dummy_metric_name, dummy_metric_fn in metric_fns.items():
+                        score_d = float(dummy_metric_fn(y_true_dummy, y_pred_dummy))
+                        fold_scores.setdefault(
+                            ("dummy", dummy_metric_name, space_name), []
+                        ).append(score_d)
+
+                        # Per-class scores for the dummy run
+                        if dummy_metric_name == "f1_weighted":
+                            pcs_d = f1_score(
+                                y_true_dummy, y_pred_dummy, average=None,
+                                labels=label_order, zero_division=0,
+                            )
+                        elif dummy_metric_name == "precision_weighted":
+                            pcs_d = precision_score(
+                                y_true_dummy, y_pred_dummy, average=None,
+                                labels=label_order, zero_division=0,
+                            )
+                        elif dummy_metric_name == "recall_weighted":
+                            pcs_d = recall_score(
+                                y_true_dummy, y_pred_dummy, average=None,
+                                labels=label_order, zero_division=0,
+                            )
+                        else:  # accuracy
+                            pcs_d = []
+                            for lbl in label_order:
+                                m_d = y_true_dummy == lbl
+                                if m_d.any():
+                                    pcs_d.append(float((y_pred_dummy[m_d] == lbl).mean()))
+                                else:
+                                    pcs_d.append(np.nan)
+
+                        for lbl, cls_score_d in zip(label_order, pcs_d):
+                            CROSS_FOLD_CLASS_RECORDS.append(
+                                {
+                                    "split": split_name,
+                                    "target": target,
+                                    "classifier": "dummy",
+                                    "space": space_name,
+                                    "metric": dummy_metric_name,
+                                    "fold": int(fold_idx),
+                                    "obs_category": lbl,
+                                    "value": (
+                                        float(cls_score_d)
+                                        if not np.isnan(cls_score_d)
+                                        else np.nan
+                                    ),
+                                    "n_eval_for_class": int((y_true_dummy == lbl).sum()),
+                                }
+                            )
+
         # Summaries + logging
         for (clf_name, metric_name, space_name), scores in fold_scores.items():
             mean_score = float(np.mean(scores))
@@ -665,6 +800,162 @@ def run_cross_fold_classification(
 
 
 # ---------------------------------------------------------------------
+# Subcluster split evaluation
+# ---------------------------------------------------------------------
+SUBCLUSTER_RECORDS = []
+
+
+def run_subcluster_split_eval(
+    mdata,
+    model,
+    obs_key: str,
+    cell_type: str,
+    k_values: List[int],
+    splits: str,
+    random_seed: int,
+    embedding: str,
+    metrics: List[str],
+    fig_dir: str,
+    wandb=None,
+):
+    """
+    For a given cell type, split cells 50/50, then for each k:
+      1. Fit KMeans(k) on train-half joint latent → train labels
+      2. Embed train-half (umap/tsne) colored by cluster labels
+      3. Predict labels on test-half → test labels
+      4. Embed test-half colored by predicted labels
+      5. Fit LogReg on (test latent, test labels)
+      6. Evaluate LogReg on train latent → metrics vs train labels
+      7. Log metrics + figures to W&B; append to SUBCLUSTER_RECORDS
+    """
+    print(f"\n=== [SUBCLUSTER] Starting subcluster_split_eval for '{cell_type}' ===")
+
+    if obs_key not in mdata.obs.columns:
+        print(f"[SUBCLUSTER] obs_key '{obs_key}' not found in mdata.obs; skipping.")
+        return
+
+    cell_mask = mdata.obs[obs_key] == cell_type
+    n_cells = int(cell_mask.sum())
+    print(f"[SUBCLUSTER] Found {n_cells} cells with {obs_key}=={cell_type!r}")
+    if n_cells < 20:
+        print(f"[SUBCLUSTER] Too few cells ({n_cells}); skipping.")
+        return
+
+    all_indices = np.flatnonzero(cell_mask.to_numpy())
+    train_idx, test_idx = train_test_split(
+        all_indices, test_size=0.5, random_state=random_seed
+    )
+    print(f"[SUBCLUSTER] Train half: {len(train_idx)} cells | Test half: {len(test_idx)} cells")
+
+    print("[SUBCLUSTER] Computing joint latent representation...")
+    Z_all = model.get_latent_representation(adata=mdata, modality="joint")
+    Z_train = Z_all[train_idx] #1. Split into two equal  halves
+    Z_test  = Z_all[test_idx]
+
+    metric_fns = {}
+    for name in metrics:
+        if name == "accuracy":
+            metric_fns[name] = accuracy_score
+        elif name == "f1_weighted":
+            metric_fns[name] = lambda yt, yp: f1_score(yt, yp, average="weighted", zero_division=0)
+        elif name == "precision_weighted":
+            metric_fns[name] = lambda yt, yp: precision_score(yt, yp, average="weighted", zero_division=0)
+        elif name == "recall_weighted":
+            metric_fns[name] = lambda yt, yp: recall_score(yt, yp, average="weighted", zero_division=0)
+
+    def _build_logreg():
+        lr_kwargs = dict(max_iter=2000, n_jobs=-1, class_weight="balanced", solver="lbfgs")
+        try:
+            clf = LogisticRegression(multi_class="auto", **lr_kwargs)
+        except TypeError:
+            clf = LogisticRegression(**lr_kwargs)
+        return make_pipeline(StandardScaler(), clf)
+
+    def _embed(Z: np.ndarray, labels, split_name: str, k: int) -> Optional[str]:
+        import anndata as ad
+        tmp = ad.AnnData(X=Z)
+        tmp.obs["cluster"] = [str(l) for l in labels]
+        sc.pp.neighbors(tmp, use_rep="X", key_added="nn")
+        if embedding == "umap":
+            sc.tl.umap(tmp, min_dist=0.1, neighbors_key="nn")
+            basis = "umap"
+        else:
+            sc.tl.tsne(tmp, use_rep="X")
+            basis = "tsne"
+
+        safe_ct = cell_type.replace(" ", "_").replace("/", "-")
+        fname = f"subcluster_{safe_ct}_k{k}_{split_name}.png"
+        out_path = os.path.join(fig_dir, fname)
+
+        n_clusters = len(set(labels))
+        palette = sns.color_palette("tab20", n_clusters)
+        color_map = {str(i): palette[i % len(palette)] for i in range(n_clusters)}
+
+        fig, ax = plt.subplots(figsize=(5, 5))
+        coords = tmp.obsm[f"X_{basis}"]
+        for lbl in sorted(color_map):
+            mask_l = np.array(tmp.obs["cluster"] == lbl)
+            ax.scatter(
+                coords[mask_l, 0], coords[mask_l, 1],
+                s=4, alpha=0.6, color=color_map[lbl], label=lbl, rasterized=True
+            )
+        ax.set_title(f"{cell_type} | k={k} | {split_name}", fontsize=9)
+        ax.set_xlabel(basis.upper() + " 1")
+        ax.set_ylabel(basis.upper() + " 2")
+        ax.legend(markerscale=2, fontsize=6, loc="best", ncol=max(1, n_clusters // 10))
+        fig.tight_layout()
+        fig.savefig(out_path, dpi=120, bbox_inches="tight")
+        plt.close(fig)
+        print(f"[SUBCLUSTER] Saved {split_name} embedding → {out_path}")
+        return out_path
+
+    show_train = splits in {"train", "both"}
+    show_test  = splits in {"test", "both"}
+
+    for k in k_values:
+        print(f"\n[SUBCLUSTER] k={k}")
+        km = KMeans(n_clusters=k, random_state=random_seed, n_init=10)
+        train_labels = km.fit_predict(Z_train) #2. fit k means on train
+        test_labels  = km.predict(Z_test) #3. predict k labels on test
+
+        train_fig_path = _embed(Z_train, train_labels, "train", k) if show_train else None
+        test_fig_path  = _embed(Z_test,  test_labels,  "test",  k) if show_test  else None
+
+        clf = _build_logreg()
+        clf.fit(Z_test, test_labels) #4. fit log reg on test + k means pred labels
+        pred_on_train = clf.predict(Z_train) #5. predict k means labels on train using trained log reg
+
+        row = {
+            "cell_type": cell_type,
+            "obs_key": obs_key,
+            "k": k,
+            "n_train": len(train_idx),
+            "n_test": len(test_idx),
+        }
+        wandb_log = {}
+        for metric_name, fn in metric_fns.items(): #6. evaluate against true k means labels
+            score = float(fn(train_labels, pred_on_train))
+            row[metric_name] = score
+            wandb_log[f"subcluster/{cell_type}/k{k}/{metric_name}"] = score
+            print(f"[SUBCLUSTER] k={k} | {metric_name} = {score:.4f}")
+
+        SUBCLUSTER_RECORDS.append(row)
+
+        if wandb is not None:
+            if train_fig_path:
+                wandb_log[f"subcluster/{cell_type}/k{k}/embed_train"] = wandb.Image(train_fig_path)
+            if test_fig_path:
+                wandb_log[f"subcluster/{cell_type}/k{k}/embed_test"] = wandb.Image(test_fig_path)
+            wandb.log(wandb_log)
+
+    if SUBCLUSTER_RECORDS:
+        safe_ct = cell_type.replace(" ", "_").replace("/", "-")
+        csv_path = os.path.join(fig_dir, f"subcluster_split_eval_{safe_ct}.csv")
+        pd.DataFrame(SUBCLUSTER_RECORDS).to_csv(csv_path, index=False)
+        print(f"[SUBCLUSTER] Records saved → {csv_path}")
+
+
+# ---------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------
 def build_argparser():
@@ -734,6 +1025,43 @@ def build_argparser():
     )
 
     parser.add_argument(
+        "--impute_top_n_hvj",
+        type=int,
+        default=-1,
+        help=(
+            "If set to a positive integer N, restrict all imputation evals "
+            "(test_impute and every masked_impute file) to the top-N most highly "
+            "variable junctions, ranked by per-junction PSI variance across observed "
+            "cells in the unmasked test MuData. The same junction set is used across "
+            "all eval conditions so results are directly comparable. "
+            "Set to -1 (default) to disable this filter and evaluate all junctions."
+        ),
+    )
+
+    parser.add_argument(
+        "--impute_hvj_include_atse_buddies",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, expand the top-N HVJ junction set to include all junctions that "
+            "share an event_id with any selected HVJ junction. Requires "
+            "--impute_top_n_hvj to be set. Applied to both masked_impute and test_impute."
+        ),
+    )
+
+    parser.add_argument(
+        "--impute_dataset_filter",
+        type=str,
+        default=None,
+        help=(
+            "If set, restrict masked_impute and test_impute to cells where "
+            "obs['dataset'] equals this value "
+            "(e.g. 'tabula_muris_senis' or 'allen_brain_exons'). "
+            "Leave unset to evaluate all cells."
+        ),
+    )
+
+    parser.add_argument(
         "--masked_test_mdata_is_resampled",
         action="store_true",
         default=False,
@@ -770,7 +1098,20 @@ def build_argparser():
         ),
     )
 
-    # UMAP settings
+    # Latent visualization settings
+    parser.add_argument(
+        "--latent_viz_splits",
+        choices=["train", "test", "both"],
+        default="train",
+        help="Which data split(s) to run latent visualization on (train, test, or both).",
+    )
+    parser.add_argument(
+        "--latent_viz_types",
+        nargs="+",
+        choices=["umap", "tsne"],
+        default=["umap"],
+        help="Which embedding type(s) to compute: umap, tsne, or both.",
+    )
     parser.add_argument(
         "--umap_top_n_celltypes",
         type=int,
@@ -789,13 +1130,78 @@ def build_argparser():
             "If not provided, defaults to ['broad_cell_type', 'medium_cell_type' (if present)]."
         ),
     )
+    parser.add_argument(
+        "--junction_color_ids",
+        nargs="*",
+        default=None,
+        metavar="JUNCTION_ID",
+        help=(
+            "Junction IDs (from splicing var_names) to color embeddings by empirical PSI "
+            "(junc_ratio layer). Unobserved cells (psi_mask==0) are shown in light gray."
+        ),
+    )
 
     # Which eval blocks to run
+    parser.add_argument(
+        "--mean_bayes_impute",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, compute a mean-Bayes baseline alongside the model for imputation evals. "
+            "For each junction the baseline predicts the mean junc_ratio across all cells "
+            "that observed it (PSI > 0). Applied to both masked_impute and test_impute when "
+            "those blocks are enabled."
+        ),
+    )
+
+    parser.add_argument(
+        "--mean_bayes_group_by",
+        type=str,
+        default="None",
+        help=(
+            "obs field to use as the group prior for MeanBayes imputation (e.g. 'broad_cell_type'). "
+            "Set to 'None' (default) to use a single global prior."
+        ),
+    )
+
+    parser.add_argument(
+        "--cross_fold_dummy_classifier",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, run a DummyClassifier(strategy='prior') baseline on the same cross-fold "
+            "splits alongside the real classifiers. The dummy ignores all latent features and "
+            "predicts purely from label frequencies, giving a random-chance F1 floor."
+        ),
+    )
+
+    parser.add_argument(
+        "--cross_fold_label_permute",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, for each (classifier, fold, latent space) also fit the real classifier "
+            "on randomly permuted training labels and evaluate on the real held-out labels. "
+            "A model learning real signal should perform near chance here."
+        ),
+    )
+
+    parser.add_argument(
+        "--output_per_label_f1_csv",
+        action="store_true",
+        default=False,
+        help=(
+            "If set, write one CSV per cross-fold target with per-label F1 scores for every "
+            "fold/space/classifier. Columns: label, f1, space, split, classifier, fold. "
+            "File names: per_label_f1_<target>.csv in --fig_dir."
+        ),
+    )
+
     parser.add_argument(
         "--evals",
         nargs="+",
         default=[
-            "umap",
+            "latent_visualization",
             "clustering",
             "train_eval",
             "test_eval",
@@ -804,7 +1210,12 @@ def build_argparser():
         ],
         help=(
             "Which eval blocks to run. Choices among: "
-            "umap, clustering, train_eval, test_eval, age_r2_heatmap, masked_impute, cross_fold_classification"
+            "latent_visualization, clustering, train_eval, test_eval, age_r2_heatmap, "
+            "masked_impute, cross_fold_classification, test_impute. "
+            "'umap' is accepted as an alias for latent_visualization (legacy). "
+            "test_impute runs the unmasked test mdata through the model and compares "
+            "imputed PSI against junc_ratio (the perfect / upper-bound baseline). "
+            "Uses the same boundary-PSI and min-ATSE-count filters as masked_impute."
         ),
     )
 
@@ -843,6 +1254,46 @@ def build_argparser():
         choices=["accuracy", "f1_weighted", "precision_weighted", "recall_weighted"],
         default=["accuracy", "f1_weighted", "precision_weighted", "recall_weighted"],
         help="Metrics to report for cross-fold evaluation.",
+    )
+
+    # Subcluster split evaluation
+    parser.add_argument(
+        "--subcluster_obs_key",
+        type=str,
+        default="broad_cell_type",
+        help="obs column used to select the cell type for subcluster_split_eval.",
+    )
+    parser.add_argument(
+        "--subcluster_cell_type",
+        nargs="*",
+        default=None,
+        help="One or more cell type values (in --subcluster_obs_key) to run subcluster_split_eval on. "
+             "If omitted or empty, all cell types in the obs key are evaluated.",
+    )
+    parser.add_argument(
+        "--subcluster_k_values",
+        nargs="+",
+        type=int,
+        default=[2, 4, 8, 16],
+        help="List of k values for KMeans in subcluster_split_eval.",
+    )
+    parser.add_argument(
+        "--subcluster_splits",
+        choices=["train", "test", "both"],
+        default="both",
+        help="Which 50/50 halves to generate embeddings for in subcluster_split_eval.",
+    )
+    parser.add_argument(
+        "--subcluster_random_seed",
+        type=int,
+        default=42,
+        help="Random seed for 50/50 split and KMeans in subcluster_split_eval.",
+    )
+    parser.add_argument(
+        "--subcluster_embedding",
+        choices=["umap", "tsne"],
+        default="umap",
+        help="Dimensionality reduction for subcluster_split_eval figures.",
     )
 
     # Optional W&B integration
@@ -885,16 +1336,157 @@ def build_argparser():
     return parser
 
 
+# ---------------------------------------------------------------------
+# Imputation diagnostic: 2-D density scatter (predicted vs observed PSI)
+# ---------------------------------------------------------------------
+def plot_psi_density_scatter(
+    orig: np.ndarray,
+    pred: np.ndarray,
+    pearson_r: float,
+    out_path: str,
+    tag: str = "",
+    l1_mean: float | None = None,
+    y_label: str = "Predicted PSI",
+    max_pts: int = 200_000,
+    wandb=None,
+    run=None,
+):
+    """
+    Square 2-D density scatter: observed PSI (x) vs predicted PSI (y).
+
+    Points are coloured by local density estimated with Gaussian KDE on a
+    random subsample (max_pts) so the call stays fast even for millions of
+    entries. A y=x diagonal reference line and a Pearson-r annotation are
+    included.
+    """
+    from scipy.stats import gaussian_kde
+    from matplotlib.colors import Normalize
+    from matplotlib.cm import ScalarMappable
+
+    rng = np.random.default_rng(42)
+    n = len(orig)
+    if n > max_pts:
+        idx = rng.choice(n, size=max_pts, replace=False)
+        x_plot = orig[idx].astype(np.float64)
+        y_plot = pred[idx].astype(np.float64)
+    else:
+        x_plot = orig.astype(np.float64)
+        y_plot = pred.astype(np.float64)
+
+    # Density estimation on the (possibly subsampled) points
+    xy = np.vstack([x_plot, y_plot])
+    try:
+        kde = gaussian_kde(xy, bw_method="scott")
+        density = kde(xy)
+    except np.linalg.LinAlgError:
+        density = np.ones(len(x_plot))
+
+    # Sort so densest points render on top
+    order = np.argsort(density)
+    x_plot, y_plot, density = x_plot[order], y_plot[order], density[order]
+
+    fig, ax = plt.subplots(figsize=(4, 4))
+
+    norm = Normalize(vmin=density.min(), vmax=density.max())
+    sc_plot = ax.scatter(
+        x_plot, y_plot,
+        c=density,
+        cmap="viridis",
+        norm=norm,
+        s=1,
+        alpha=0.4,
+        linewidths=0,
+        rasterized=True,
+    )
+
+    # y = x diagonal reference line
+    lims = [0.0, 1.0]
+    ax.plot(lims, lims, color="crimson", linewidth=1.0, linestyle="--", zorder=3)
+
+    ax.set_xlim(lims)
+    ax.set_ylim(lims)
+    ax.set_aspect("equal")
+    ax.set_xlabel("Observed PSI", fontsize=11)
+    ax.set_ylabel(y_label, fontsize=11)
+
+    title = f"PSI Imputation{' — ' + tag if tag else ''}"
+    ax.set_title(title, fontsize=11)
+
+    n_label = f"n={n:,}" if n <= max_pts else f"n={max_pts:,} (subsampled from {n:,})"
+    annotation = f"Pearson r = {pearson_r:.3f}"
+    if l1_mean is not None:
+        annotation += f"\nL1 mean = {l1_mean:.4f}"
+    annotation += f"\n{n_label}"
+    ax.text(
+        0.04, 0.93,
+        annotation,
+        transform=ax.transAxes,
+        fontsize=9,
+        verticalalignment="top",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.7),
+    )
+
+    cbar = fig.colorbar(ScalarMappable(norm=norm, cmap="viridis"), ax=ax, shrink=0.75)
+    cbar.set_label("Density", fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=200, bbox_inches="tight")
+    print(f"[EVAL/IMPUTE] Saved density scatter to {out_path}")
+    if run is not None and wandb is not None:
+        wandb.log({f"impute/{tag}/psi_density_scatter": wandb.Image(out_path)})
+    plt.close(fig)
+
+
+def _safe_pearson(a: np.ndarray, b: np.ndarray) -> float:
+    if np.std(a) < 1e-12 or np.std(b) < 1e-12:
+        return float("nan")
+    return float(np.corrcoef(a, b)[0, 1])
+
+
+def _compute_imputation_metrics(orig_arr: np.ndarray, pred_arr: np.ndarray) -> dict:
+    pearson_r = _safe_pearson(orig_arr, pred_arr)
+    spearman_r = float(spearmanr(orig_arr, pred_arr, nan_policy="omit")[0])
+    abs_diff = np.abs(orig_arr - pred_arr)
+    l1_mean = float(np.mean(abs_diff))
+    l1_median = float(np.median(abs_diff))
+    l1_p90 = float(np.quantile(abs_diff, 0.90))
+    pred_min = float(np.min(pred_arr))
+    pred_max = float(np.max(pred_arr))
+    smape = float(np.mean(2.0 * abs_diff / (np.abs(orig_arr) + np.abs(pred_arr) + 1e-8)))
+    orig64 = orig_arr.astype(np.float64, copy=False)
+    pred64 = pred_arr.astype(np.float64)
+    denom = float(np.linalg.norm(orig64) * np.linalg.norm(pred64) + 1e-8)
+    cosine_sim = float(np.dot(orig64, pred64) / denom)
+    minmax_ratio = float(np.mean(
+        np.minimum(np.abs(orig_arr), np.abs(pred_arr))
+        / (np.maximum(np.abs(orig_arr), np.abs(pred_arr)) + 1e-8)
+    ))
+    rmse = float(np.sqrt(np.mean((orig_arr - pred_arr) ** 2)))
+    return dict(
+        pearson=pearson_r, spearman=spearman_r,
+        l1_mean=l1_mean, l1_median=l1_median, l1_p90=l1_p90,
+        pred_min=pred_min, pred_max=pred_max,
+        smape=smape, cosine_sim=cosine_sim,
+        minmax_ratio=minmax_ratio, rmse=rmse,
+    )
+
+
 def main():
     parser = build_argparser()
     args = parser.parse_args()
-    EVALS = set(args.evals)
+    # Normalize legacy "umap" alias → "latent_visualization"
+    EVALS = {"latent_visualization" if e == "umap" else e for e in args.evals}
     cross_fold_targets = list(dict.fromkeys(args.cross_fold_targets))
     cross_fold_splits = args.cross_fold_splits
     cross_fold_classifiers = args.cross_fold_classifiers
     run_crossfold_train = cross_fold_splits in {"train", "both"}
     run_crossfold_test = cross_fold_splits in {"test", "both"}
+    latent_viz_splits = args.latent_viz_splits
+    run_viz_train = latent_viz_splits in {"train", "both"}
+    run_viz_test = latent_viz_splits in {"test", "both"}
+    latent_viz_types = list(dict.fromkeys(args.latent_viz_types))  # preserves order, dedupes
     batch_key = None if (args.batch_key is None or str(args.batch_key).lower() == "none") else args.batch_key
+    mean_bayes_group_by = None if (args.mean_bayes_group_by is None or str(args.mean_bayes_group_by).lower() == "none") else args.mean_bayes_group_by
 
     os.makedirs(args.fig_dir, exist_ok=True)
 
@@ -920,6 +1512,8 @@ def main():
         "batch_key": batch_key,
         "impute_batch_size": args.impute_batch_size,
         "evals": list(EVALS),
+        "latent_viz_splits": latent_viz_splits,
+        "latent_viz_types": latent_viz_types,
         "umap_top_n_celltypes": args.umap_top_n_celltypes,
         "umap_obs_keys": args.umap_obs_keys,
         "cross_fold_targets": cross_fold_targets,
@@ -1072,9 +1666,10 @@ def main():
         print(f"[UMAP] UMAP obs keys not provided; using defaults: {umap_obs_keys}")
 
     # Latent spaces (TRAIN)
-    # Required by: umap, clustering, train_eval, cross_fold_classification (train split)
+    # Required by: latent_visualization (train), clustering, train_eval, cross_fold_classification (train split)
     _need_train_latent = bool(
-        EVALS & {"umap", "clustering", "train_eval"}
+        EVALS & {"clustering", "train_eval"}
+        or ("latent_visualization" in EVALS and run_viz_train)
         or ("cross_fold_classification" in EVALS and run_crossfold_train)
     )
     latent_spaces_train = {}
@@ -1091,111 +1686,200 @@ def main():
         print("[MODEL] Skipping TRAIN latent computation (not requested).")
 
     # -----------------------------------------------------------------
-    # UMAP evaluation (TRAIN)
+    # Latent visualization (UMAP / t-SNE, TRAIN and/or TEST)
     # -----------------------------------------------------------------
-    if "umap" in EVALS:
-        print("[EVAL/UMAP] Starting UMAP evaluation on TRAIN...")
-        print(f"[EVAL/UMAP] Will compute UMAPs for latent spaces: {list(latent_spaces_train.keys())}")
-        print(f"[EVAL/UMAP] Will color UMAPs by obs keys: {umap_obs_keys}")
+    def _build_palette(ad, obs_key, color_dict):
+        """Return a palette dict for sc.pl.embedding, or None to let scanpy choose."""
+        if obs_key == "group_highlighted":
+            return color_dict
+        obs_series = ad.obs[obs_key]
+        obs_as_str = obs_series.astype(str)
+        n_categories = obs_as_str.nunique()
+        normalized_key = obs_key.lower().replace(".", "_")
+        needs_large_palette = normalized_key in {"mouse_id", "mouseid"} or n_categories > 100
+        if not needs_large_palette:
+            return None
+        # Preserve categorical ordering if present; otherwise sort for determinism
+        if pd.api.types.is_categorical_dtype(obs_series):
+            categories = list(obs_series.cat.categories.astype(str))
+        else:
+            categories = sorted(pd.Index(obs_as_str).unique())
+        cmap = cm.get_cmap("hsv", max(len(categories), 1))
+        base_colors = cmap(np.linspace(0, 1, len(categories), endpoint=False))
+        rng_pal = np.random.default_rng(42)
+        permuted = base_colors[rng_pal.permutation(len(categories))]
+        return {cat: permuted[i] for i, cat in enumerate(categories)}
 
-        for name, Z in tqdm(
-            latent_spaces_train.items(),
-            desc="[EVAL/UMAP] Latent spaces",
-        ):
-            key_latent = f"X_latent_{name}"
-            key_nn = f"neighbors_{name}"
-            key_umap = f"X_umap_{name}"
+    junction_color_ids = args.junction_color_ids or []
 
-            print(f"[EVAL/UMAP] Working on latent space '{name}'...")
-            print(f"[EVAL/UMAP] Storing latent in .obsm['{key_latent}']...")
-            mdata_train["rna"].obsm[key_latent] = Z
+    def _plot_junction_psi(
+        mdata_split,
+        junction_id: str,
+        embed_coords: np.ndarray,
+        embed_type: str,
+        lat_name: str,
+        split_label: str,
+    ) -> None:
+        """Plot embedding colored by empirical PSI for a single junction.
 
-            print(f"[EVAL/UMAP] Computing neighbors for '{name}'...")
-            sc.pp.neighbors(
-                mdata_train["rna"],
-                use_rep=key_latent,
-                key_added=key_nn,
-            )
+        Cells where psi_mask == 0 are drawn in light gray; observed cells get
+        a viridis colorbar scaled 0–1.
+        """
+        ad_spl = mdata_split["splicing"]
+        if "junction_id" not in ad_spl.var.columns:
+            print(f"[EVAL/VIZ/PSI] WARNING: 'junction_id' column not found in splicing .var; skipping.")
+            return
+        junc_mask = ad_spl.var["junction_id"] == junction_id
+        if not junc_mask.any():
+            print(f"[EVAL/VIZ/PSI] WARNING: junction '{junction_id}' not found in splicing var['junction_id']; skipping.")
+            return
 
-            print(f"[EVAL/UMAP] Computing UMAP embedding for '{name}'...")
-            sc.tl.umap(mdata_train["rna"], min_dist=0.1, neighbors_key=key_nn)
-            mdata_train["rna"].obsm[key_umap] = mdata_train["rna"].obsm["X_umap"]
+        junc_idx = int(np.flatnonzero(junc_mask.values)[0])
 
-            # Plot UMAPs for all requested obs keys
-            for obs_key in tqdm(
-                umap_obs_keys,
-                desc=f"[EVAL/UMAP] Plotting colors for '{name}'",
-                leave=False,
-            ):
-                if obs_key not in mdata_train["rna"].obs.columns:
-                    print(
-                        f"[EVAL/UMAP] WARNING: obs key '{obs_key}' not found in TRAIN RNA. Skipping."
+        jr = ad_spl.layers["junc_ratio"]
+        pm = ad_spl.layers["psi_mask"]
+
+        psi_vals = np.asarray(jr[:, junc_idx].todense()).ravel() if sparse.issparse(jr) else np.asarray(jr[:, junc_idx]).ravel()
+        mask_vals = np.asarray(pm[:, junc_idx].todense()).ravel() if sparse.issparse(pm) else np.asarray(pm[:, junc_idx]).ravel()
+
+        observed = mask_vals != 0
+
+        fig, ax = plt.subplots(figsize=(5, 5))
+        ax.set_box_aspect(1)
+        ax.set_aspect(1)
+
+        ax.scatter(
+            embed_coords[~observed, 0], embed_coords[~observed, 1],
+            c="#D3D3D3", s=5, linewidths=0, rasterized=True, label="unobserved",
+        )
+        sc_obs = ax.scatter(
+            embed_coords[observed, 0], embed_coords[observed, 1],
+            c=psi_vals[observed], cmap="viridis", vmin=0.0, vmax=1.0,
+            s=5, linewidths=0, rasterized=True,
+        )
+        plt.colorbar(sc_obs, ax=ax, label="Empirical PSI", fraction=0.046, pad=0.04)
+
+        axis1, axis2 = (("UMAP1", "UMAP2") if embed_type == "umap" else ("t-SNE 1", "t-SNE 2"))
+        ax.set_xlabel(axis1)
+        ax.set_ylabel(axis2)
+        safe_jid = re.sub(r"[^A-Za-z0-9]+", "_", junction_id)
+        embed_label = embed_type.upper()
+        ax.set_title(f"SpliceVI $Z_{{{lat_name.capitalize()}}}$ {embed_label} ({split_label})\nPSI: {junction_id}")
+        plt.tight_layout()
+
+        out_path = os.path.join(
+            args.fig_dir,
+            f"{split_label}_{embed_type}_{lat_name}_psi_{safe_jid}.png",
+        )
+        plt.savefig(out_path, dpi=300, bbox_inches="tight")
+        print(f"[EVAL/VIZ/PSI] Saved PSI plot to {out_path}")
+        if run is not None:
+            wandb.log({f"latent_viz/{split_label}_{embed_type}_{lat_name}_psi_{safe_jid}": wandb.Image(out_path)})
+        plt.close(fig)
+
+    def _run_latent_viz(split_label, mdata_split, latent_spaces, obs_keys):
+        """Compute and save UMAP / t-SNE embeddings for one data split."""
+        ad = mdata_split["rna"]
+        print(f"[EVAL/VIZ] Starting latent visualization on {split_label.upper()}...")
+        print(f"[EVAL/VIZ] Latent spaces : {list(latent_spaces.keys())}")
+        print(f"[EVAL/VIZ] Viz types     : {latent_viz_types}")
+        print(f"[EVAL/VIZ] Coloring by   : {obs_keys}")
+
+        for lat_name, Z in tqdm(latent_spaces.items(), desc=f"[EVAL/VIZ/{split_label}] Latent spaces"):
+            key_latent = f"X_latent_{lat_name}"
+            key_nn = f"neighbors_{lat_name}"
+            print(f"[EVAL/VIZ] Storing latent '{lat_name}' in .obsm['{key_latent}']...")
+            ad.obsm[key_latent] = Z
+
+            # Neighbors are required by UMAP; t-SNE can run without them but we compute
+            # them anyway so UMAP and t-SNE use the same neighborhood graph when both are
+            # requested, keeping results comparable.
+            if "umap" in latent_viz_types or "tsne" in latent_viz_types:
+                print(f"[EVAL/VIZ] Computing neighbors for '{lat_name}'...")
+                sc.pp.neighbors(ad, use_rep=key_latent, key_added=key_nn)
+
+            # --- UMAP ---
+            if "umap" in latent_viz_types:
+                key_embed = f"X_umap_{lat_name}"
+                print(f"[EVAL/VIZ] Computing UMAP for '{lat_name}'...")
+                sc.tl.umap(ad, min_dist=0.1, neighbors_key=key_nn)
+                ad.obsm[key_embed] = ad.obsm["X_umap"]
+
+                for obs_key in tqdm(obs_keys, desc=f"[EVAL/VIZ] UMAP plots for '{lat_name}'", leave=False):
+                    if obs_key not in ad.obs.columns:
+                        print(f"[EVAL/VIZ] WARNING: obs key '{obs_key}' not in {split_label} RNA. Skipping.")
+                        continue
+                    print(f"[EVAL/VIZ] Plotting {split_label} UMAP '{lat_name}' colored by '{obs_key}'...")
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.set_box_aspect(1)
+                    ax.set_aspect(1)
+                    sc.pl.embedding(
+                        ad, basis=key_embed, color=obs_key,
+                        palette=_build_palette(ad, obs_key, color_dict),
+                        show=False, frameon=True, legend_fontsize=10,
+                        legend_loc="right margin", ax=ax,
                     )
-                    continue
+                    ax.set_xlabel("UMAP1")
+                    ax.set_ylabel("UMAP2")
+                    plt.title(f"SpliceVI $Z_{{{lat_name.capitalize()}}}$ ({split_label})")
+                    plt.tight_layout()
+                    safe_obs = re.sub(r"[^A-Za-z0-9]+", "_", obs_key)
+                    out_path = os.path.join(args.fig_dir, f"{split_label}_umap_{lat_name}_{safe_obs}.png")
+                    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+                    print(f"[EVAL/VIZ] Saved UMAP to {out_path}")
+                    if run is not None:
+                        wandb.log({f"latent_viz/{split_label}_umap_{lat_name}_{safe_obs}": wandb.Image(out_path)})
+                    plt.close(fig)
 
-                print(
-                    f"[EVAL/UMAP] Plotting TRAIN UMAP for latent '{name}' colored by '{obs_key}'..."
-                )
+                # PSI coloring for UMAP
+                for junc_id in junction_color_ids:
+                    _plot_junction_psi(mdata_split, junc_id, ad.obsm[key_embed], "umap", lat_name, split_label)
 
-                fig, ax = plt.subplots(figsize=(5, 5))
-                ax.set_box_aspect(1)
-                ax.set_aspect(1)
+            # --- t-SNE ---
+            if "tsne" in latent_viz_types:
+                key_embed = f"X_tsne_{lat_name}"
+                print(f"[EVAL/VIZ] Computing t-SNE for '{lat_name}'...")
+                sc.tl.tsne(ad, use_rep=key_latent)
+                ad.obsm[key_embed] = ad.obsm["X_tsne"]
 
-                palette = color_dict if obs_key == "group_highlighted" else None
+                for obs_key in tqdm(obs_keys, desc=f"[EVAL/VIZ] t-SNE plots for '{lat_name}'", leave=False):
+                    if obs_key not in ad.obs.columns:
+                        print(f"[EVAL/VIZ] WARNING: obs key '{obs_key}' not in {split_label} RNA. Skipping.")
+                        continue
+                    print(f"[EVAL/VIZ] Plotting {split_label} t-SNE '{lat_name}' colored by '{obs_key}'...")
+                    fig, ax = plt.subplots(figsize=(5, 5))
+                    ax.set_box_aspect(1)
+                    ax.set_aspect(1)
+                    sc.pl.embedding(
+                        ad, basis=key_embed, color=obs_key,
+                        palette=_build_palette(ad, obs_key, color_dict),
+                        show=False, frameon=True, legend_fontsize=10,
+                        legend_loc="right margin", ax=ax,
+                    )
+                    ax.set_xlabel("t-SNE 1")
+                    ax.set_ylabel("t-SNE 2")
+                    plt.title(f"SpliceVI $Z_{{{lat_name.capitalize()}}}$ t-SNE ({split_label})")
+                    plt.tight_layout()
+                    safe_obs = re.sub(r"[^A-Za-z0-9]+", "_", obs_key)
+                    out_path = os.path.join(args.fig_dir, f"{split_label}_tsne_{lat_name}_{safe_obs}.png")
+                    plt.savefig(out_path, dpi=300, bbox_inches="tight")
+                    print(f"[EVAL/VIZ] Saved t-SNE to {out_path}")
+                    if run is not None:
+                        wandb.log({f"latent_viz/{split_label}_tsne_{lat_name}_{safe_obs}": wandb.Image(out_path)})
+                    plt.close(fig)
 
-                # Avoid Scanpy defaulting to a single gray color when there are many categories
-                # (e.g., lots of mouse IDs). Force a large distinct palette for high-cardinality keys.
-                if palette is None:
-                    obs_series = mdata_train["rna"].obs[obs_key]
-                    obs_as_str = obs_series.astype(str)
-                    n_categories = obs_as_str.nunique()
-                    normalized_key = obs_key.lower().replace(".", "_")
-                    needs_large_palette = normalized_key in {"mouse_id", "mouseid"} or n_categories > 100
-                    if needs_large_palette:
-                        # Preserve categorical ordering if present; otherwise sort for determinism
-                        if pd.api.types.is_categorical_dtype(obs_series):
-                            categories = list(obs_series.cat.categories.astype(str))
-                        else:
-                            categories = sorted(pd.Index(obs_as_str).unique())
+                # PSI coloring for t-SNE
+                for junc_id in junction_color_ids:
+                    _plot_junction_psi(mdata_split, junc_id, ad.obsm[key_embed], "tsne", lat_name, split_label)
 
-                        # Draw well-separated colors and shuffle them so adjacent labels differ
-                        cmap = cm.get_cmap("hsv", max(len(categories), 1))
-                        base_colors = cmap(np.linspace(0, 1, len(categories), endpoint=False))
-                        rng = np.random.default_rng(42)
-                        permuted = base_colors[rng.permutation(len(categories))]
-                        palette = {cat: permuted[i] for i, cat in enumerate(categories)}
+        print(f"[EVAL/VIZ] All {split_label.upper()} latent visualizations complete.")
 
-                sc.pl.embedding(
-                    mdata_train["rna"],
-                    basis=key_umap,
-                    color=obs_key,
-                    palette=palette,
-                    show=False,
-                    frameon=True,
-                    legend_fontsize=10,
-                    legend_loc="right margin",
-                    ax=ax,
-                )
-
-                ax.set_xlabel("UMAP1")
-                ax.set_ylabel("UMAP2")
-                plt.title(f"SpliceVI $Z_{{{name.capitalize()}}}$")
-                plt.tight_layout()
-
-                safe_obs = re.sub(r"[^A-Za-z0-9]+", "_", obs_key)
-                out_path = os.path.join(
-                    args.fig_dir, f"train_umap_{name}_{safe_obs}.png"
-                )
-                plt.savefig(out_path, dpi=300, bbox_inches="tight")
-                print(f"[EVAL/UMAP] Saved UMAP to {out_path}")
-                if run is not None:
-                    wandb.log({f"umap/train_{name}_{safe_obs}": wandb.Image(out_path)})
-
-                plt.close(fig)
-
-        print("[EVAL/UMAP] All TRAIN UMAPs complete.")
-    else:
-        print("[EVAL/UMAP] UMAP evaluation skipped by config.")
+    if "latent_visualization" in EVALS:
+        if run_viz_train:
+            _run_latent_viz("train", mdata_train, latent_spaces_train, umap_obs_keys)
+        elif not run_viz_test:
+            print("[EVAL/VIZ] Latent visualization skipped by config.")
+        # test split viz runs later, after mdata_test is loaded
 
     # -----------------------------------------------------------------
     # Clustering + consistency
@@ -1566,9 +2250,34 @@ def main():
             args.cross_fold_metrics,
             args.fig_dir,
             wandb=wandb if run is not None else None,
+            do_dummy=args.cross_fold_dummy_classifier,
+            do_label_permute=args.cross_fold_label_permute,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TRAIN split disabled by --cross_fold_splits.")
+
+    # Subcluster split evaluation (runs on TRAIN mdata before it is freed)
+    if "subcluster_split_eval" in EVALS:
+        cell_types = args.subcluster_cell_type
+        if not cell_types:
+            cell_types = sorted(mdata_train.obs[args.subcluster_obs_key].dropna().unique().tolist())
+            print(f"[SUBCLUSTER] --subcluster_cell_type not set; running all {len(cell_types)} labels.")
+        for ct in cell_types:
+            run_subcluster_split_eval(
+                mdata=mdata_train,
+                model=model,
+                obs_key=args.subcluster_obs_key,
+                cell_type=ct,
+                k_values=args.subcluster_k_values,
+                splits=args.subcluster_splits,
+                random_seed=args.subcluster_random_seed,
+                embedding=args.subcluster_embedding,
+                metrics=args.cross_fold_metrics,
+                fig_dir=args.fig_dir,
+                wandb=wandb if run is not None else None,
+            )
+    else:
+        print("[SUBCLUSTER] subcluster_split_eval skipped by config.")
 
     # Free TRAIN data
     print("[CLEANUP] Releasing TRAIN MuData from memory...")
@@ -1610,9 +2319,102 @@ def main():
         modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
     )
 
+    # -----------------------------------------------------------------
+    # Compute HVJ column mask ONCE from unmasked test splicing data.
+    # Applied consistently to every imputation eval (test_impute and all
+    # masked_impute files) so results are directly comparable.
+    # hvj_col_mask is a boolean array of length n_junc; None = no filter.
+    # -----------------------------------------------------------------
+    # True if any imputation eval block will run — only compute HVJ when needed.
+    _do_any_impute = ("test_impute" in EVALS) or ("masked_impute" in EVALS)
+    if args.impute_top_n_hvj != -1 and _do_any_impute:
+        print(
+            f"[HVJ] Computing top-{args.impute_top_n_hvj} most variable junctions "
+            f"from unmasked test splicing data (junc_ratio layer)...",
+            flush=True,
+        )
+        # Load the PSI matrix from the unmasked test splicing modality (cells x junctions).
+        # Kept sparse throughout to avoid densifying a potentially huge matrix.
+        _jr_hvj = mdata_test["splicing"].layers["junc_ratio"]
+        if not sparse.isspmatrix_csr(_jr_hvj):
+            _jr_hvj = sparse.csr_matrix(_jr_hvj)
+        _n_junc_total = _jr_hvj.shape[1]
+
+        # Count how many cells observed each junction (PSI > 0).
+        # Sparse: only stored non-zeros satisfy > 0, so this never densifies.
+        _n_obs_hvj = np.asarray((_jr_hvj > 0).sum(axis=0)).ravel().astype(np.float64)
+
+        # Sum of PSI values per junction across observed cells — needed for the mean.
+        _sum_hvj   = np.asarray(_jr_hvj.sum(axis=0)).ravel().astype(np.float64)
+
+        # Sum of squared PSI values per junction — needed for E[X²] in the variance formula.
+        # .power(2) squares only the stored values without densifying.
+        _sumsq_hvj = np.asarray(_jr_hvj.power(2).sum(axis=0)).ravel().astype(np.float64)
+
+        # Free the sparse PSI matrix; we only need the per-junction summary stats from here on.
+        del _jr_hvj
+
+        # Per-junction mean PSI over observed cells: E[X] = sum(PSI) / n_obs.
+        # np.maximum guards against junctions with zero observations (divide-by-zero).
+        _mean_hvj  = _sum_hvj / np.maximum(_n_obs_hvj, 1.0)
+
+        # Per-junction variance using the computational formula: Var(X) = E[X²] - E[X]².
+        # Both E[X²] and E[X] are computed only over cells where PSI > 0.
+        _var_hvj   = _sumsq_hvj / np.maximum(_n_obs_hvj, 1.0) - _mean_hvj ** 2
+
+        # Zero out variance for junctions seen in fewer than 2 cells — not estimable.
+        _var_hvj[_n_obs_hvj < 2] = 0.0
+
+        del _sum_hvj, _sumsq_hvj, _mean_hvj, _n_obs_hvj
+
+        # Count junctions with positive variance (the pool we can meaningfully rank).
+        _n_valid_hvj = int((_var_hvj > 0).sum())
+
+        # Cap N at the number of junctions that actually have variance > 0.
+        _actual_n_hvj = min(args.impute_top_n_hvj, _n_valid_hvj)
+
+        # argpartition is O(n) and finds the top-N indices without a full sort.
+        # The last _actual_n_hvj elements of the result are the top-N (unordered).
+        _hvj_indices = np.argpartition(_var_hvj, -_actual_n_hvj)[-_actual_n_hvj:]
+        del _var_hvj
+
+        # Build a boolean column mask of length n_junc.
+        # True = this junction is in the top-N HVJ set and will be included in eval.
+        hvj_col_mask = np.zeros(_n_junc_total, dtype=bool)
+        hvj_col_mask[_hvj_indices] = True
+
+        if args.impute_hvj_include_atse_buddies:
+            _var_event_ids = mdata_test["splicing"].var["event_id"].values
+            _selected_event_ids = set(_var_event_ids[_hvj_indices])
+            _buddy_mask = np.isin(_var_event_ids, list(_selected_event_ids))
+            _n_before_buddies = int(hvj_col_mask.sum())
+            hvj_col_mask |= _buddy_mask
+            print(
+                f"[HVJ] After including ATSE buddies: {int(hvj_col_mask.sum())} junctions "
+                f"({int(hvj_col_mask.sum()) - _n_before_buddies} buddy junctions added "
+                f"from {len(_selected_event_ids)} ATSEs).",
+                flush=True,
+            )
+
+        del _hvj_indices
+        print(
+            f"[HVJ] Selected {_actual_n_hvj} seed junctions "
+            f"(of {_n_junc_total} total, {_n_valid_hvj} with var > 0); "
+            f"{int(hvj_col_mask.sum())} total after buddy expansion. "
+            f"Same mask applied in all imputation evals.",
+            flush=True,
+        )
+    else:
+        # -1 means disabled: pass None so downstream filter blocks are skipped entirely.
+        hvj_col_mask = None
+        if _do_any_impute:
+            print("[HVJ] impute_top_n_hvj=-1; no HVJ filter applied (all junctions used).")
+
     latent_spaces_test = {}
-    if ("test_eval" in EVALS) or (
-        "cross_fold_classification" in EVALS and run_crossfold_test
+    if (
+        ("test_eval" in EVALS)
+        or ("cross_fold_classification" in EVALS and run_crossfold_test)
+        or ("latent_visualization" in EVALS and run_viz_test)
     ):
         print("[MODEL] Computing latent representations on TEST for evaluation...")
         latent_spaces_test = {
@@ -1628,6 +2430,9 @@ def main():
             print(f"[MODEL] TEST latent '{name}' shape: {Z.shape}")
     else:
         print("[MODEL] Skipping TEST latent computation (not requested).")
+
+    if "latent_visualization" in EVALS and run_viz_test:
+        _run_latent_viz("test", mdata_test, latent_spaces_test, umap_obs_keys)
 
     if "test_eval" in EVALS:
         print("[EVAL/TEST] Starting test-split latent quality evaluation...")
@@ -1676,6 +2481,8 @@ def main():
             args.cross_fold_metrics,
             args.fig_dir,
             wandb=wandb if run is not None else None,
+            do_dummy=args.cross_fold_dummy_classifier,
+            do_label_permute=args.cross_fold_label_permute,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TEST split disabled by --cross_fold_splits.")
@@ -1704,6 +2511,20 @@ def main():
                 )
                 if run is not None:
                     wandb.log({f"crossfold/per_class/{tgt}_csv_path": tgt_csv})
+
+            if args.output_per_label_f1_csv:
+                f1_df = class_df[class_df["metric"] == "f1_weighted"].copy()
+                f1_df = f1_df.rename(columns={"obs_category": "label", "value": "f1"})
+                for tgt, tgt_f1_df in f1_df.groupby("target"):
+                    out_df = tgt_f1_df[["label", "f1", "space", "split", "classifier", "fold"]]
+                    tgt_f1_csv = os.path.join(args.fig_dir, f"per_label_f1_{tgt}.csv")
+                    out_df.to_csv(tgt_f1_csv, index=False)
+                    print(
+                        f"[CROSS-FOLD] Wrote per-label F1 CSV for target '{tgt}' to {tgt_f1_csv} "
+                        f"({out_df.shape[0]} rows)."
+                    )
+                    if run is not None:
+                        wandb.log({f"crossfold/per_label_f1/{tgt}_csv_path": tgt_f1_csv})
 
         if len(CROSS_FOLD_SIGNIFICANCE) > 0:
             sig_df = pd.DataFrame(CROSS_FOLD_SIGNIFICANCE)
@@ -1735,6 +2556,188 @@ def main():
             print("[EVAL/AGE] No age R² pairing records collected; skipping CSV.")
     else:
         print("[EVAL/AGE] Age R² CSV skipped by config.")
+
+    # -----------------------------------------------------------------
+    # Test imputation eval (perfect / upper-bound baseline)
+    # Runs the *unmasked* test mdata through the model and checks imputed
+    # PSI against junc_ratio (the original, unmasked values).
+    # -----------------------------------------------------------------
+    if "test_impute" in EVALS:
+        print("\n" + "=" * 60)
+        print("[EVAL/TEST_IMPUTE] Starting test imputation eval (perfect baseline)...")
+        print("[EVAL/TEST_IMPUTE] Ground truth = junc_ratio (unmasked test data)")
+        ad_test_spl = mdata_test["splicing"]
+
+        junc_ratio_test = ad_test_spl.layers["junc_ratio"]
+        if not sparse.isspmatrix_csr(junc_ratio_test):
+            junc_ratio_test = sparse.csr_matrix(junc_ratio_test)
+
+        n_nonzero_ti = int(junc_ratio_test.nnz)
+        n_eq_one_ti = int((junc_ratio_test.data == 1.0).sum())
+        print(
+            f"[EVAL/TEST_IMPUTE] junc_ratio: {n_nonzero_ti} stored non-zero entries "
+            f"({n_eq_one_ti} with PSI == 1.0, "
+            f"{n_nonzero_ti - n_eq_one_ti} with 0 < PSI < 1.0)."
+        )
+
+        if args.impute_filter_boundary_psi:
+            mask_data_ti = (junc_ratio_test.data > 0.0) & (junc_ratio_test.data < 1.0)
+        else:
+            mask_data_ti = junc_ratio_test.data > 0.0
+
+        bin_mask_ti = sparse.csr_matrix(
+            (mask_data_ti.astype(np.float32),
+             junc_ratio_test.indices.copy(),
+             junc_ratio_test.indptr.copy()),
+            shape=junc_ratio_test.shape,
+        )
+        bin_mask_ti.eliminate_zeros()
+
+        if args.impute_filter_boundary_psi:
+            print(
+                f"[EVAL/TEST_IMPUTE] After PSI boundary filter (exclude PSI == 1.0): "
+                f"{bin_mask_ti.nnz} entries remain "
+                f"({n_nonzero_ti - bin_mask_ti.nnz} removed)."
+            )
+
+        if args.min_atse_count != -1:
+            cc_ti = ad_test_spl.layers["cell_by_cluster_matrix"]
+            if not sparse.isspmatrix_csr(cc_ti):
+                cc_ti = sparse.csr_matrix(cc_ti)
+            count_ok_ti_data = cc_ti.data >= args.min_atse_count
+            count_ok_ti = sparse.csr_matrix(
+                (count_ok_ti_data.astype(np.float32), cc_ti.indices, cc_ti.indptr),
+                shape=cc_ti.shape,
+            )
+            before_count_ti = bin_mask_ti.nnz
+            bin_mask_ti = bin_mask_ti.multiply(count_ok_ti)
+            if not sparse.isspmatrix_csr(bin_mask_ti):
+                bin_mask_ti = sparse.csr_matrix(bin_mask_ti)
+            print(
+                f"[EVAL/TEST_IMPUTE] After ATSE count filter (>= {args.min_atse_count}): "
+                f"{bin_mask_ti.nnz} entries remain "
+                f"({before_count_ti - bin_mask_ti.nnz} removed)."
+            )
+
+        print(f"[EVAL/TEST_IMPUTE] Final eval set: {bin_mask_ti.nnz} entries.")
+
+        bs_ti = args.impute_batch_size if args.impute_batch_size != -1 else 512
+        n_cells_ti = bin_mask_ti.shape[0]
+        print(
+            f"[EVAL/TEST_IMPUTE] Running get_normalized_splicing_DM over {n_cells_ti} cells "
+            f"(batch_size={bs_ti})...",
+            flush=True,
+        )
+        model.module.eval()
+        with torch.inference_mode():
+            all_preds_ti = model.get_normalized_splicing_DM(
+                adata=mdata_test,
+                return_numpy=True,
+                batch_size=bs_ti,
+            )
+
+        print(f"[EVAL/TEST_IMPUTE] Extracting eval pairs from mask...", flush=True)
+        eval_rows_ti, eval_cols_ti = bin_mask_ti.nonzero()
+        if hvj_col_mask is not None:
+            _before_hvj_ti = eval_rows_ti.size
+            _keep_hvj_ti = hvj_col_mask[eval_cols_ti]
+            eval_rows_ti = eval_rows_ti[_keep_hvj_ti]
+            eval_cols_ti = eval_cols_ti[_keep_hvj_ti]
+            print(
+                f"[EVAL/TEST_IMPUTE] After HVJ filter (top-{args.impute_top_n_hvj} junctions): "
+                f"{eval_rows_ti.size} entries remain "
+                f"({_before_hvj_ti - eval_rows_ti.size} removed).",
+                flush=True,
+            )
+        if args.impute_dataset_filter:
+            _ds_vals_ti = mdata_test.obs["dataset"].values
+            _ds_keep_ti = _ds_vals_ti[eval_rows_ti] == args.impute_dataset_filter
+            _before_ds_ti = eval_rows_ti.size
+            eval_rows_ti = eval_rows_ti[_ds_keep_ti]
+            eval_cols_ti = eval_cols_ti[_ds_keep_ti]
+            print(
+                f"[EVAL/TEST_IMPUTE] After dataset filter (dataset=={args.impute_dataset_filter}): "
+                f"{eval_rows_ti.size} entries remain "
+                f"({_before_ds_ti - eval_rows_ti.size} removed).",
+                flush=True,
+            )
+        pairs_total_ti = eval_rows_ti.size
+
+        if pairs_total_ti == 0:
+            print("[EVAL/TEST_IMPUTE] No eval entries found; skipping correlation.")
+        else:
+            if sparse.issparse(junc_ratio_test):
+                orig_all_ti = np.asarray(
+                    junc_ratio_test[eval_rows_ti, eval_cols_ti]
+                ).ravel().astype(np.float32)
+            else:
+                orig_all_ti = junc_ratio_test[eval_rows_ti, eval_cols_ti].astype(np.float32)
+            pred_all_ti = all_preds_ti[eval_rows_ti, eval_cols_ti].astype(np.float32)
+            del all_preds_ti
+            torch.cuda.empty_cache()
+
+            pearson_ti = float(np.corrcoef(orig_all_ti, pred_all_ti)[0, 1])
+            spearman_ti = float(spearmanr(orig_all_ti, pred_all_ti, nan_policy="omit")[0])
+            abs_diff_ti = np.abs(orig_all_ti - pred_all_ti)
+            l1_mean_ti = float(np.mean(abs_diff_ti))
+            l1_median_ti = float(np.median(abs_diff_ti))
+            l1_p90_ti = float(np.quantile(abs_diff_ti, 0.90))
+            pred_min_ti = float(np.min(pred_all_ti))
+            pred_max_ti = float(np.max(pred_all_ti))
+            smape_ti = float(
+                np.mean(2.0 * abs_diff_ti / (np.abs(orig_all_ti) + np.abs(pred_all_ti) + 1e-8))
+            )
+            orig64_ti = orig_all_ti.astype(np.float64, copy=False)
+            pred64_ti = pred_all_ti.astype(np.float64, copy=False)
+            denom_ti = float(np.linalg.norm(orig64_ti) * np.linalg.norm(pred64_ti) + 1e-8)
+            cosine_sim_ti = float(np.dot(orig64_ti, pred64_ti) / denom_ti)
+            minmax_ratio_ti = float(
+                np.mean(
+                    np.minimum(np.abs(orig_all_ti), np.abs(pred_all_ti))
+                    / (np.maximum(np.abs(orig_all_ti), np.abs(pred_all_ti)) + 1e-8)
+                )
+            )
+            rmse_ti = float(np.sqrt(np.mean((orig_all_ti - pred_all_ti) ** 2)))
+
+            print(
+                f"[EVAL/TEST_IMPUTE] PSI corr — "
+                f"Pearson: {pearson_ti:.4f}, Spearman: {spearman_ti:.4f}  (n={pairs_total_ti})"
+            )
+            print(
+                f"[EVAL/TEST_IMPUTE] PSI L1 — "
+                f"mean: {l1_mean_ti:.4e}, median: {l1_median_ti:.4e}, p90: {l1_p90_ti:.4e}"
+            )
+            print(
+                f"[EVAL/TEST_IMPUTE] PSI range — min: {pred_min_ti:.4e}, max: {pred_max_ti:.4e}"
+            )
+            print(
+                f"[EVAL/TEST_IMPUTE] PSI SMAPE: {smape_ti:.4e}, "
+                f"cosine: {cosine_sim_ti:.4f}, minmax_ratio: {minmax_ratio_ti:.4f}, "
+                f"RMSE: {rmse_ti:.4e}"
+            )
+
+            if run is not None:
+                wandb.log(
+                    {
+                        "impute-test/unmasked/psi_pearson_corr": pearson_ti,
+                        "impute-test/unmasked/psi_spearman_corr": spearman_ti,
+                        "impute-test/unmasked/psi_l1_mean": l1_mean_ti,
+                        "impute-test/unmasked/psi_l1_median": l1_median_ti,
+                        "impute-test/unmasked/psi_l1_p90": l1_p90_ti,
+                        "impute-test/unmasked/psi_pred_min": pred_min_ti,
+                        "impute-test/unmasked/psi_pred_max": pred_max_ti,
+                        "impute-test/unmasked/psi_smape": smape_ti,
+                        "impute-test/unmasked/psi_cosine_sim": cosine_sim_ti,
+                        "impute-test/unmasked/psi_minmax_ratio": minmax_ratio_ti,
+                        "impute-test/unmasked/psi_rmse": rmse_ti,
+                        "impute-test/unmasked/n_eval_entries": int(pairs_total_ti),
+                    }
+                )
+
+        print("[EVAL/TEST_IMPUTE] Test imputation eval complete.")
+        print("=" * 60)
+    else:
+        print("[EVAL/TEST_IMPUTE] Test imputation eval skipped by config.")
 
     # -----------------------------------------------------------------
     # Masked-ATSE imputation on TEST
@@ -1811,17 +2814,15 @@ def main():
 
                 if args.masked_test_mdata_is_resampled:
                     # ── Resampled mode ────────────────────────────────────────
-                    # Ground truth = junc_ratio_original (pre-resampling values)
-                    # Evaluate only where junc_ratio_original > 0
+                    # Ground truth = junc_ratio_original (pre-resampling values).
+                    # Split eval into three cases:
+                    #   "dropped"  – originally observed but dropped by downsampling
+                    #   "observed" – still observed after downsampling (noisy PSI)
+                    #   "all"      – union of the two (current / legacy behaviour)
                     junc_ratio_orig = ad_masked.layers["junc_ratio_original"]
                     if not sparse.isspmatrix_csr(junc_ratio_orig):
                         junc_ratio_orig = sparse.csr_matrix(junc_ratio_orig)
-                    # Build binary eval mask: positions where 0 < junc_ratio_original < 1
-                    # (exclude unobserved = 0, and trivially certain = 1)
-                    # Build eval mask directly from .data to avoid densification.
-                    # junc_ratio_orig is CSR; .data contains only stored non-zeros.
-                    # gt_zero (> 0) is always sparse-safe; lt_one (< 1) is NOT
-                    # (implicit zeros also satisfy < 1, forcing a dense result).
+
                     n_nonzero = int(junc_ratio_orig.nnz)
                     n_eq_one  = int((junc_ratio_orig.data == 1.0).sum())
                     print(
@@ -1831,6 +2832,7 @@ def main():
                         f"{n_nonzero - n_eq_one} with 0 < PSI < 1.0)."
                     )
 
+                    # ── Build bin_mask ("all"): junc_ratio_orig > 0 + optional filters ──
                     if args.impute_filter_boundary_psi:
                         mask_data = (junc_ratio_orig.data > 0.0) & (junc_ratio_orig.data < 1.0)
                     else:
@@ -1841,11 +2843,8 @@ def main():
                          junc_ratio_orig.indptr.copy()),
                         shape=junc_ratio_orig.shape,
                     )
-                    if not sparse.isspmatrix_csr(bin_mask):
-                        bin_mask = sparse.csr_matrix(bin_mask)
+                    del mask_data
                     bin_mask.eliminate_zeros()
-                    masked_orig = junc_ratio_orig
-                    
 
                     if args.impute_filter_boundary_psi:
                         print(
@@ -1860,24 +2859,342 @@ def main():
                             cc_orig = sparse.csr_matrix(cc_orig)
                         count_ok_data = cc_orig.data >= args.min_atse_count
                         count_ok = sparse.csr_matrix(
-                            (count_ok_data.astype(np.float32),
-                             cc_orig.indices,
-                             cc_orig.indptr),
+                            (count_ok_data.astype(np.float32), cc_orig.indices, cc_orig.indptr),
                             shape=cc_orig.shape,
                         )
+                        del count_ok_data, cc_orig
                         before_count_filter = bin_mask.nnz
                         bin_mask = bin_mask.multiply(count_ok)
                         if not sparse.isspmatrix_csr(bin_mask):
                             bin_mask = sparse.csr_matrix(bin_mask)
+                        bin_mask.eliminate_zeros()
+                        del count_ok
                         print(
                             f"[EVAL/IMPUTE/{tag}] After ATSE count filter (>= {args.min_atse_count}): "
                             f"{bin_mask.nnz} entries remain "
                             f"({before_count_filter - bin_mask.nnz} removed)."
                         )
 
+                    # ── Split bin_mask by psi_mask into "observed" and "dropped" ──
+                    psi_mask_sp = ad_masked.layers[mask_layer]
+                    if not sparse.isspmatrix_csr(psi_mask_sp):
+                        psi_mask_sp = sparse.csr_matrix(psi_mask_sp)
+                    psi_mask_sp.eliminate_zeros()
+
+                    # "observed": bin_mask positions still observed after downsampling
+                    still_obs_mask = bin_mask.multiply(psi_mask_sp)
+                    if not sparse.isspmatrix_csr(still_obs_mask):
+                        still_obs_mask = sparse.csr_matrix(still_obs_mask)
+                    still_obs_mask.eliminate_zeros()
+
+                    # "dropped": bin_mask positions that became unobserved (psi_mask==0)
+                    newly_unobs_mask = bin_mask - still_obs_mask
+                    if not sparse.isspmatrix_csr(newly_unobs_mask):
+                        newly_unobs_mask = sparse.csr_matrix(newly_unobs_mask)
+                    newly_unobs_mask.eliminate_zeros()
+                    del psi_mask_sp
+
                     print(
-                        f"[EVAL/IMPUTE/{tag}] Final eval set: {bin_mask.nnz} entries."
+                        f"[EVAL/IMPUTE/{tag}] Case splits — "
+                        f"dropped: {newly_unobs_mask.nnz}, "
+                        f"observed: {still_obs_mask.nnz}, "
+                        f"all: {bin_mask.nnz}"
                     )
+
+                    # ── Load downsampled PSI for noise scatters ─────────────
+                    junc_ratio_ds = ad_masked.layers["junc_ratio"]
+                    if not sparse.isspmatrix_csr(junc_ratio_ds):
+                        junc_ratio_ds = sparse.csr_matrix(junc_ratio_ds)
+
+                    # ── Run model ─────────────────────────────────────────────
+                    bs = args.impute_batch_size if args.impute_batch_size != -1 else 512
+                    n_cells_r = bin_mask.shape[0]
+                    print(
+                        f"[EVAL/IMPUTE/{tag}] Running get_normalized_splicing_DM_DM over "
+                        f"{n_cells_r} cells (batch_size={bs})...",
+                        flush=True,
+                    )
+                    with torch.inference_mode():
+                        all_preds = model.get_normalized_splicing_DM(
+                            adata=mdata_masked,
+                            return_numpy=True,
+                            batch_size=bs,
+                        )
+
+                    # ── Helper: apply HVJ filter to (rows, cols) ───────────
+                    def _apply_hvj(rows, cols, case_label):
+                        if hvj_col_mask is None:
+                            return rows, cols
+                        if hvj_col_mask.shape[0] != bin_mask.shape[1]:
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/{case_label}] WARNING: hvj_col_mask "
+                                f"length ({hvj_col_mask.shape[0]}) != n_junc "
+                                f"({bin_mask.shape[1]}); skipping HVJ filter.",
+                                flush=True,
+                            )
+                            return rows, cols
+                        before = rows.size
+                        keep = hvj_col_mask[cols]
+                        rows, cols = rows[keep], cols[keep]
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_label}] After HVJ filter "
+                            f"(top-{args.impute_top_n_hvj}): {rows.size} entries "
+                            f"({before - rows.size} removed).",
+                            flush=True,
+                        )
+                        return rows, cols
+
+                    # ── Helper: apply dataset row filter to (rows, cols) ────
+                    def _apply_dataset_filter(rows, cols, case_label):
+                        if not args.impute_dataset_filter:
+                            return rows, cols
+                        _ds_vals = mdata_masked.obs["dataset"].values
+                        _keep_ds = _ds_vals[rows] == args.impute_dataset_filter
+                        before = rows.size
+                        rows, cols = rows[_keep_ds], cols[_keep_ds]
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_label}] After dataset filter "
+                            f"(dataset=={args.impute_dataset_filter}): {rows.size} entries "
+                            f"({before - rows.size} removed).",
+                            flush=True,
+                        )
+                        return rows, cols
+
+                    # ── Evaluate each case ────────────────────────────────────
+                    eval_cases = [
+                        ("dropped",  newly_unobs_mask),
+                        ("observed", still_obs_mask),
+                        ("all",      bin_mask),
+                    ]
+                    case_eval_data: dict = {}  # case_name -> (rows, cols, orig, pred)
+
+                    for case_name, case_mask in eval_cases:
+                        eval_rows_c, eval_cols_c = case_mask.nonzero()
+                        eval_rows_c, eval_cols_c = _apply_hvj(
+                            eval_rows_c, eval_cols_c, case_name
+                        )
+                        eval_rows_c, eval_cols_c = _apply_dataset_filter(
+                            eval_rows_c, eval_cols_c, case_name
+                        )
+                        n_eval_c = eval_rows_c.size
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_name}] n_eval = {n_eval_c}",
+                            flush=True,
+                        )
+
+                        if n_eval_c == 0:
+                            case_eval_data[case_name] = (eval_rows_c, eval_cols_c, None, None)
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/{case_name}] No entries; skipping metrics."
+                            )
+                            continue
+
+                        orig_c = np.asarray(
+                            junc_ratio_orig[eval_rows_c, eval_cols_c]
+                        ).ravel().astype(np.float32)
+                        pred_c = all_preds[eval_rows_c, eval_cols_c].astype(np.float32)
+                        case_eval_data[case_name] = (eval_rows_c, eval_cols_c, orig_c, pred_c)
+
+                        m = _compute_imputation_metrics(orig_c, pred_c)
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_name}] SpliceVI PSI corr — "
+                            f"Pearson: {m['pearson']:.4f}, Spearman: {m['spearman']:.4f}  "
+                            f"(n={n_eval_c})"
+                        )
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_name}] SpliceVI PSI L1 — "
+                            f"mean: {m['l1_mean']:.4e}, median: {m['l1_median']:.4e}, "
+                            f"p90: {m['l1_p90']:.4e}"
+                        )
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_name}] SpliceVI PSI range — "
+                            f"min: {m['pred_min']:.4e}, max: {m['pred_max']:.4e}"
+                        )
+                        print(
+                            f"[EVAL/IMPUTE/{tag}/{case_name}] SpliceVI PSI SMAPE: "
+                            f"{m['smape']:.4e}, cosine: {m['cosine_sim']:.4f}, "
+                            f"minmax_ratio: {m['minmax_ratio']:.4f}, "
+                            f"RMSE: {m['rmse']:.4e}"
+                        )
+                        if run is not None:
+                            wandb.log({
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_pearson_corr":  m["pearson"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_spearman_corr": m["spearman"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_l1_mean":       m["l1_mean"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_l1_median":     m["l1_median"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_l1_p90":        m["l1_p90"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_pred_min":      m["pred_min"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_pred_max":      m["pred_max"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_smape":         m["smape"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_cosine_sim":    m["cosine_sim"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_minmax_ratio":  m["minmax_ratio"],
+                                f"impute-test/{tag}/{case_name}/splicevi/psi_rmse":          m["rmse"],
+                                f"impute-test/{tag}/{case_name}/splicevi/n_eval_entries":    n_eval_c,
+                                f"impute-test/{tag}/impute_batch_size":                      bs,
+                                f"impute-test/{tag}/masked_file":                            masked_path,
+                            })
+
+                        # Noise scatter: downsampled PSI vs original PSI
+                        ds_c = np.asarray(
+                            junc_ratio_ds[eval_rows_c, eval_cols_c]
+                        ).ravel().astype(np.float32)
+                        noise_pearson = _safe_pearson(orig_c, ds_c)
+                        noise_l1 = float(np.mean(np.abs(orig_c - ds_c)))
+                        noise_scatter_path = os.path.join(
+                            args.fig_dir,
+                            f"impute_{tag}_{case_name}_noise_scatter_orig_vs_downsampled.png",
+                        )
+                        plot_psi_density_scatter(
+                            orig_c, ds_c,
+                            pearson_r=noise_pearson,
+                            l1_mean=noise_l1,
+                            y_label="Downsampled PSI",
+                            out_path=noise_scatter_path,
+                            tag=f"{tag} — {case_name} entries (downsampled vs original)",
+                            wandb=wandb if run is not None else None,
+                            run=run,
+                        )
+                        del ds_c
+
+                        # SpliceVI scatter: SpliceVI PSI vs original PSI
+                        splicevi_scatter_path = os.path.join(
+                            args.fig_dir,
+                            f"impute_{tag}_{case_name}_splicevi_psi_density_scatter.png",
+                        )
+                        plot_psi_density_scatter(
+                            orig_c, pred_c,
+                            pearson_r=m["pearson"],
+                            l1_mean=m["l1_mean"],
+                            out_path=splicevi_scatter_path,
+                            tag=f"{tag} — {case_name} entries (SpliceVI)",
+                            wandb=wandb if run is not None else None,
+                            run=run,
+                        )
+
+                    del all_preds, junc_ratio_ds
+                    torch.cuda.empty_cache()
+
+                    # ── MeanBayes baseline — evaluated on "dropped" entries only ──
+                    if args.mean_bayes_impute:
+                        dropped_rows, dropped_cols, orig_dropped, _ = case_eval_data.get(
+                            "dropped", (None, None, None, None)
+                        )
+                        if orig_dropped is not None and orig_dropped.size > 0:
+                            n_dropped = orig_dropped.size
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] Running MeanBayes "
+                                f"(group_by={mean_bayes_group_by}, "
+                                f"n_eval={n_dropped})...",
+                                flush=True,
+                            )
+                            mb = MeanBayes(
+                                ad_masked,
+                                junc_ratio_layer="junc_ratio",
+                                psi_mask_layer=mask_layer,
+                                group_by=mean_bayes_group_by,
+                            )
+                            mb_imputed = mb.get_imputed_splicing(return_numpy=True)
+                            del mb
+                            pred_mb = mb_imputed[dropped_rows, dropped_cols].astype(
+                                np.float32
+                            )
+                            del mb_imputed
+                            gc.collect()
+
+                            m_mb = _compute_imputation_metrics(orig_dropped, pred_mb)
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes n_eval = "
+                                f"{n_dropped} (same positions as SpliceVI dropped)"
+                            )
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI corr — "
+                                f"Pearson: {m_mb['pearson']:.4f}, "
+                                f"Spearman: {m_mb['spearman']:.4f}  (n={n_dropped})"
+                            )
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI L1 — "
+                                f"mean: {m_mb['l1_mean']:.4e}, "
+                                f"median: {m_mb['l1_median']:.4e}, "
+                                f"p90: {m_mb['l1_p90']:.4e}"
+                            )
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI range — "
+                                f"min: {m_mb['pred_min']:.4e}, max: {m_mb['pred_max']:.4e}"
+                            )
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI SMAPE: "
+                                f"{m_mb['smape']:.4e}, cosine: {m_mb['cosine_sim']:.4f}, "
+                                f"minmax_ratio: {m_mb['minmax_ratio']:.4f}, "
+                                f"RMSE: {m_mb['rmse']:.4e}"
+                            )
+                            if run is not None:
+                                wandb.log({
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pearson_corr":  m_mb["pearson"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_spearman_corr": m_mb["spearman"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_mean":       m_mb["l1_mean"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_median":     m_mb["l1_median"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_p90":        m_mb["l1_p90"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pred_min":      m_mb["pred_min"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pred_max":      m_mb["pred_max"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_smape":         m_mb["smape"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_cosine_sim":    m_mb["cosine_sim"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_minmax_ratio":  m_mb["minmax_ratio"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/psi_rmse":          m_mb["rmse"],
+                                    f"impute-test/{tag}/dropped/mean_bayes/n_eval_entries":    n_dropped,
+                                })
+                            mb_scatter_path = os.path.join(
+                                args.fig_dir,
+                                f"impute_{tag}_dropped_mean_bayes_psi_density_scatter.png",
+                            )
+                            plot_psi_density_scatter(
+                                orig_dropped, pred_mb,
+                                pearson_r=m_mb["pearson"],
+                                l1_mean=m_mb["l1_mean"],
+                                out_path=mb_scatter_path,
+                                tag=f"{tag} — dropped entries (MeanBayes)",
+                                wandb=wandb if run is not None else None,
+                                run=run,
+                            )
+                            del pred_mb
+                        else:
+                            print(
+                                f"[EVAL/IMPUTE/{tag}/dropped] No dropped entries; "
+                                f"skipping MeanBayes eval."
+                            )
+
+                    # ── Residuals CSV for "all" case ──────────────────────────
+                    eval_rows_all, eval_cols_all, orig_all_case, pred_all_case = (
+                        case_eval_data.get("all", (None, None, None, None))
+                    )
+                    if orig_all_case is not None:
+                        junc_names = np.asarray(ad_masked.var_names)
+                        residuals_df = pd.DataFrame({
+                            "cell_idx":       eval_rows_all,
+                            "junction_idx":   eval_cols_all,
+                            "junction_name":  junc_names[eval_cols_all],
+                            "observed_psi":   orig_all_case,
+                            "model_pred_psi": pred_all_case,
+                            "model_residual": pred_all_case - orig_all_case,
+                        })
+                        residuals_csv_path = os.path.join(
+                            args.fig_dir, f"impute_{tag}_residuals.csv"
+                        )
+                        residuals_df.to_csv(residuals_csv_path, index=False)
+                        del residuals_df
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] Residuals CSV (all case) saved to: "
+                            f"{residuals_csv_path}"
+                        )
+                        if run is not None:
+                            wandb.log(
+                                {f"impute-test/{tag}/residuals_csv": residuals_csv_path}
+                            )
+
+                    del (
+                        bin_mask, newly_unobs_mask, still_obs_mask,
+                        junc_ratio_orig, case_eval_data,
+                    )
+
                 else:
                     # ── Legacy masked mode ────────────────────────────────────
                     masked_orig = ad_masked.layers["junc_ratio_masked_original"]
@@ -1887,118 +3204,127 @@ def main():
                     if not sparse.isspmatrix_csr(bin_mask):
                         bin_mask = sparse.csr_matrix(bin_mask)
 
-                bs = args.impute_batch_size if args.impute_batch_size != -1 else 512
-                n_cells = bin_mask.shape[0]
-                print(f"[EVAL/IMPUTE/{tag}] Running get_normalized_splicing over all {n_cells} cells (internal batch_size={bs})...", flush=True)
-
-                with torch.inference_mode():
-                    all_preds = model.get_normalized_splicing(
-                        adata=mdata_masked,
-                        return_numpy=True,
-                        batch_size=bs,
-                    )  # (n_cells, n_junc)
-
-                print(f"[EVAL/IMPUTE/{tag}] Extracting eval pairs from mask...", flush=True)
-                eval_rows, eval_cols = bin_mask.nonzero()
-                pairs_total = eval_rows.size
-
-                if pairs_total == 0:
+                    bs = args.impute_batch_size if args.impute_batch_size != -1 else 512
+                    n_cells = bin_mask.shape[0]
                     print(
-                        f"[EVAL/IMPUTE/{tag}] No eval entries found; skipping correlation."
+                        f"[EVAL/IMPUTE/{tag}] Running get_normalized_splicing_DM over "
+                        f"{n_cells} cells (batch_size={bs})...",
+                        flush=True,
                     )
-                else:
-                    # Extract values at eval positions without densifying
-                    if sparse.issparse(masked_orig):
-                        orig_all = np.asarray(masked_orig[eval_rows, eval_cols]).ravel().astype(np.float32)
+                    with torch.inference_mode():
+                        all_preds = model.get_normalized_splicing_DM(
+                            adata=mdata_masked,
+                            return_numpy=True,
+                            batch_size=bs,
+                        )
+
+                    print(
+                        f"[EVAL/IMPUTE/{tag}] Extracting eval pairs from mask...",
+                        flush=True,
+                    )
+                    eval_rows, eval_cols = bin_mask.nonzero()
+                    if hvj_col_mask is not None:
+                        if hvj_col_mask.shape[0] != bin_mask.shape[1]:
+                            print(
+                                f"[EVAL/IMPUTE/{tag}] WARNING: hvj_col_mask length "
+                                f"({hvj_col_mask.shape[0]}) != n_junc "
+                                f"({bin_mask.shape[1]}); skipping HVJ filter.",
+                                flush=True,
+                            )
+                        else:
+                            _before_hvj = eval_rows.size
+                            _keep_hvj = hvj_col_mask[eval_cols]
+                            eval_rows = eval_rows[_keep_hvj]
+                            eval_cols = eval_cols[_keep_hvj]
+                            print(
+                                f"[EVAL/IMPUTE/{tag}] After HVJ filter "
+                                f"(top-{args.impute_top_n_hvj} junctions): "
+                                f"{eval_rows.size} entries remain "
+                                f"({_before_hvj - eval_rows.size} removed).",
+                                flush=True,
+                            )
+                    pairs_total = eval_rows.size
+
+                    if pairs_total == 0:
+                        print(f"[EVAL/IMPUTE/{tag}] No eval entries found; skipping.")
                     else:
-                        orig_all = masked_orig[eval_rows, eval_cols].astype(np.float32)
-                    pred_all = all_preds[eval_rows, eval_cols].astype(np.float32)
-                    del all_preds
-                    torch.cuda.empty_cache()
+                        if sparse.issparse(masked_orig):
+                            orig_all = np.asarray(
+                                masked_orig[eval_rows, eval_cols]
+                            ).ravel().astype(np.float32)
+                        else:
+                            orig_all = masked_orig[eval_rows, eval_cols].astype(np.float32)
+                        pred_all = all_preds[eval_rows, eval_cols].astype(np.float32)
+                        del all_preds
+                        torch.cuda.empty_cache()
 
-                    pearson_m = float(np.corrcoef(orig_all, pred_all)[0, 1])
-                    spearman_m = float(
-                        spearmanr(orig_all, pred_all, nan_policy="omit")[0]
-                    )
-
-                    abs_diff = np.abs(orig_all - pred_all)
-                    l1_mean = float(np.mean(abs_diff))
-                    l1_median = float(np.median(abs_diff))
-                    l1_p90 = float(np.quantile(abs_diff, 0.90))
-
-                    pred_min = float(np.min(pred_all))
-                    pred_max = float(np.max(pred_all))
-                    smape = float(
-                        np.mean(
-                            2.0
-                            * abs_diff
-                            / (np.abs(orig_all) + np.abs(pred_all) + 1e-8)
+                        m = _compute_imputation_metrics(orig_all, pred_all)
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] PSI corr — "
+                            f"Pearson: {m['pearson']:.4f}, "
+                            f"Spearman: {m['spearman']:.4f}  (n={pairs_total})"
                         )
-                    )
-                    orig64 = orig_all.astype(np.float64, copy=False)
-                    pred64 = pred_all.astype(np.float64, copy=False)
-                    denom = float(
-                        np.linalg.norm(orig64) * np.linalg.norm(pred64) + 1e-8
-                    )
-                    cosine_sim = float(np.dot(orig64, pred64) / denom)
-                    minmax_ratio = float(
-                        np.mean(
-                            np.minimum(np.abs(orig_all), np.abs(pred_all))
-                            / (np.maximum(np.abs(orig_all), np.abs(pred_all)) + 1e-8)
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] PSI L1 — "
+                            f"mean: {m['l1_mean']:.4e}, "
+                            f"median: {m['l1_median']:.4e}, p90: {m['l1_p90']:.4e}"
                         )
-                    )
-                    rmse = float(np.sqrt(np.mean((orig_all - pred_all) ** 2)))
-
-                    print(
-                        f"[EVAL/IMPUTE/{tag}] PSI corr — "
-                        f"Pearson: {pearson_m:.4f}, Spearman: {spearman_m:.4f}  (n={pairs_total})"
-                    )
-                    print(
-                        f"[EVAL/IMPUTE/{tag}] PSI L1 — "
-                        f"mean: {l1_mean:.4e}, median: {l1_median:.4e}, p90: {l1_p90:.4e}"
-                    )
-                    print(
-                        f"[EVAL/IMPUTE/{tag}] PSI range — min: {pred_min:.4e}, max: {pred_max:.4e}"
-                    )
-                    print(
-                        f"[EVAL/IMPUTE/{tag}] PSI SMAPE: {smape:.4e}, "
-                        f"cosine: {cosine_sim:.4f}, minmax_ratio: {minmax_ratio:.4f}, "
-                        f"RMSE: {rmse:.4e}"
-                    )
-
-                    if run is not None:
-                        wandb.log(
-                            {
-                                f"impute-test/{tag}/psi_pearson_corr_masked_atse": pearson_m,
-                                f"impute-test/{tag}/psi_spearman_corr_masked_atse": spearman_m,
-                                f"impute-test/{tag}/psi_l1_mean_masked_atse": l1_mean,
-                                f"impute-test/{tag}/psi_l1_median_masked_atse": l1_median,
-                                f"impute-test/{tag}/psi_l1_p90_masked_atse": l1_p90,
-                                f"impute-test/{tag}/psi_pred_min_masked_atse": pred_min,
-                                f"impute-test/{tag}/psi_pred_max_masked_atse": pred_max,
-                                f"impute-test/{tag}/psi_smape_masked_atse": smape,
-                                f"impute-test/{tag}/psi_cosine_sim_masked_atse": cosine_sim,
-                                f"impute-test/{tag}/psi_minmax_ratio_masked_atse": minmax_ratio,
-                                f"impute-test/{tag}/psi_rmse_masked_atse": rmse,
-                                f"impute-test/{tag}/n_masked_entries": int(pairs_total),
-                                f"impute-test/{tag}/impute_batch_size": bs,
-                                f"impute-test/{tag}/masked_file": masked_path,
-                            }
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] PSI range — "
+                            f"min: {m['pred_min']:.4e}, max: {m['pred_max']:.4e}"
                         )
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] PSI SMAPE: {m['smape']:.4e}, "
+                            f"cosine: {m['cosine_sim']:.4f}, "
+                            f"minmax_ratio: {m['minmax_ratio']:.4f}, "
+                            f"RMSE: {m['rmse']:.4e}"
+                        )
+                        if run is not None:
+                            wandb.log({
+                                f"impute-test/{tag}/psi_pearson_corr_masked_atse":  m["pearson"],
+                                f"impute-test/{tag}/psi_spearman_corr_masked_atse": m["spearman"],
+                                f"impute-test/{tag}/psi_l1_mean_masked_atse":       m["l1_mean"],
+                                f"impute-test/{tag}/psi_l1_median_masked_atse":     m["l1_median"],
+                                f"impute-test/{tag}/psi_l1_p90_masked_atse":        m["l1_p90"],
+                                f"impute-test/{tag}/psi_pred_min_masked_atse":      m["pred_min"],
+                                f"impute-test/{tag}/psi_pred_max_masked_atse":      m["pred_max"],
+                                f"impute-test/{tag}/psi_smape_masked_atse":         m["smape"],
+                                f"impute-test/{tag}/psi_cosine_sim_masked_atse":    m["cosine_sim"],
+                                f"impute-test/{tag}/psi_minmax_ratio_masked_atse":  m["minmax_ratio"],
+                                f"impute-test/{tag}/psi_rmse_masked_atse":          m["rmse"],
+                                f"impute-test/{tag}/n_masked_entries":              int(pairs_total),
+                                f"impute-test/{tag}/impute_batch_size":             bs,
+                                f"impute-test/{tag}/masked_file":                   masked_path,
+                            })
+
+                        junc_names = np.asarray(ad_masked.var_names)
+                        residuals_df = pd.DataFrame({
+                            "cell_idx":       eval_rows,
+                            "junction_idx":   eval_cols,
+                            "junction_name":  junc_names[eval_cols],
+                            "observed_psi":   orig_all,
+                            "model_pred_psi": pred_all,
+                            "model_residual": pred_all - orig_all,
+                        })
+                        residuals_csv_path = os.path.join(
+                            args.fig_dir, f"impute_{tag}_residuals.csv"
+                        )
+                        residuals_df.to_csv(residuals_csv_path, index=False)
+                        del residuals_df
+                        print(
+                            f"[EVAL/IMPUTE/{tag}] Residuals CSV saved to: "
+                            f"{residuals_csv_path}"
+                        )
+                        if run is not None:
+                            wandb.log(
+                                {f"impute-test/{tag}/residuals_csv": residuals_csv_path}
+                            )
+                        del orig_all, pred_all
+
+                    del masked_orig, bin_mask, eval_rows, eval_cols
 
                 print(f"[EVAL/IMPUTE/{tag}] Cleaning up masked MuData from memory...")
-                del mdata_masked, ad_masked, masked_orig, bin_mask, eval_rows, eval_cols
-                # these only exist when pairs_total > 0
-                try: del orig_all
-                except NameError: pass
-                try: del pred_all
-                except NameError: pass
-                try: del orig64
-                except NameError: pass
-                try: del pred64
-                except NameError: pass
-                try: del abs_diff
-                except NameError: pass
+                del mdata_masked, ad_masked
                 gc.collect()
                 torch.cuda.empty_cache()
     else:

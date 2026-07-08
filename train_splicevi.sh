@@ -4,10 +4,11 @@
 #SBATCH --error=logs/splicevi_train_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=230G
+#SBATCH --mem=128G
+#SBATCH --exclude=ne1dg7-001,ne1dg7-002,ne1dg7-003,ne1dg7-004,ne1dg7-005,ne1dg7-006,ne1dg7-007,ne1dg7-008,ne1dg7-009,ne1dg7-010
 #SBATCH --cpus-per-task=4
 #SBATCH --time=20:00:00
-
+-u svai
 
 set -euo pipefail
 # train_splicevi.sh
@@ -54,7 +55,7 @@ ENV_NAME="splicevi-env"
 
 # 3) Core hyperparameters
 MAX_EPOCHS=800          # Total training epochs
-LR=1e-5                 # Learning rate
+LR=1e-4                 # Learning rate
 BATCH_SIZE=256          # Minibatch size
 N_EPOCHS_KL_WARMUP=200  # KL warmup epochs
 N_LATENT=30             # Latent dimensionality
@@ -62,7 +63,7 @@ DROPOUT_RATE=0.01       # Model dropout rate
 SPLICING_LOSS_TYPE="dirichlet_multinomial"  # binomial | beta_binomial | dirichlet_multinomial
 
 # 4) Optional architecture knobs (SPLICEVI __init__ parameters)
-MODALITY_WEIGHTS="equal"             # equal | cell | universal | concatenate
+MODALITY_WEIGHTS="per_dimension_weighted_average"             # equal | cell | universal | concatenate | per_dimension_weighted_average
 MODALITY_PENALTY="Jeffreys"          # Jeffreys | MMD | None
 N_LAYERS_ENCODER=2
 N_LAYERS_DECODER=2                   # not used if linear
@@ -78,8 +79,8 @@ SPLICING_ENCODER_ARCHITECTURE="partial"  # vanilla | partial
 SPLICING_DECODER_ARCHITECTURE="vanilla"   # vanilla | linear
 EXPRESSION_ARCHITECTURE="vanilla"         # vanilla | linear
 ENCODER_HIDDEN_DIM=128
-CODE_DIM=32
-H_HIDDEN_DIM=64
+CODE_DIM=64
+H_HIDDEN_DIM=128
 POOL_MODE="mean"                     # mean | sum
 MAX_NOBS=-1                          # cap for scatter chunking (-1 disables)
 INITIALIZE_EMBEDDINGS_FROM_PCA=true
@@ -87,10 +88,10 @@ FULLY_PAIRED=false
 
 WEIGHT_DECAY=1e-4
 EARLY_STOPPING_PATIENCE=50
-LR_SCHEDULER_TYPE="plateau"          # plateau | step
-LR_FACTOR=0.75
+LR_SCHEDULER_TYPE="step"          # plateau | step
+LR_FACTOR=0.1
 LR_PATIENCE=30
-STEP_SIZE=100
+STEP_SIZE=650
 GRADIENT_CLIPPING=true
 GRADIENT_CLIPPING_MAX_NORM=5.0
 
