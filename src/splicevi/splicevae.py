@@ -72,21 +72,23 @@ class DecoderSplice(torch.nn.Module):
         deep_inject_covariates: bool = False,
     ):
         super().__init__()
-        self.ps_decoder = FCLayers(
+        self.ps_hidden = FCLayers(
             n_in=n_input,
-            n_out=n_output,
+            n_out=n_hidden,
             n_cat_list=n_cat_list,
             n_layers=n_layers,
             n_hidden=n_hidden,
             dropout_rate=dropout_rate,
             use_batch_norm=use_batch_norm,
             use_layer_norm=use_layer_norm,
-            use_activation=False
+            use_activation=True,
+            # activation_fn=torch.nn.LeakyReLU,
         )
+        self.ps_output = nn.Linear(n_hidden, n_output)
 
     def forward(self, z: torch.Tensor, *cat_list: int):
-        ps = self.ps_decoder(z, *cat_list)
-        return torch.sigmoid(ps)
+        h = self.ps_hidden(z, *cat_list)
+        return torch.sigmoid(self.ps_output(h))
 
 
 
@@ -189,6 +191,10 @@ class SPLICEVAE(BaseModuleClass):
         Optional scalar concentration for the beta binomial case.
     dm_concentration : {"atse","scalar"}, default "atse"
         For Dirichlet multinomial. Controls whether the concentration is per ATSE or scalar.
+    splicing_loss_weight : float, default 1.0
+        Scalar multiplier applied to the splicing reconstruction loss before it is
+        combined with the expression reconstruction loss. Values > 1 upweight splicing
+        relative to expression; values < 1 downweight it.
 
     # --- PartialEncoder knobs (splicing_encoder_architecture="partial") ---
     code_dim : int, default 16
@@ -204,8 +210,11 @@ class SPLICEVAE(BaseModuleClass):
         A negative value disables chunking.
 
     # --- Modality mixing ---
-    modality_weights : {"equal","cell","universal","concatenate"}, default "equal"
+    modality_weights : {"equal","cell","universal","concatenate","per_dimension_weighted_average"}, default "equal"
         How to combine expression and splicing posteriors.
+        "per_dimension_weighted_average" learns a per-latent-dimension splicing contribution
+        weight w_d in [0,1] (expression weight = 1-w_d), constrained so the mean weight
+        stays at 0.5 (preventing one modality from dominating globally).
     modality_penalty : {"Jeffreys","MMD","None"}, default "Jeffreys"
         Alignment penalty between the two posteriors on paired cells.
 
@@ -256,6 +265,7 @@ class SPLICEVAE(BaseModuleClass):
         splicing_loss_type: Literal["binomial", "beta_binomial", "dirichlet_multinomial"] = "dirichlet_multinomial",
         splicing_concentration: float | None = None,
         dm_concentration: Literal["atse", "scalar"] = "atse",
+        splicing_loss_weight: float = 1.0,
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
         code_dim: int = 16,
@@ -265,7 +275,7 @@ class SPLICEVAE(BaseModuleClass):
         max_nobs: int = -1,
 
         # --- Modality mixing ---
-        modality_weights: Literal["equal", "cell", "universal", "concatenate"] = "equal",
+        modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
 
         # --- Misc ---
@@ -307,6 +317,7 @@ class SPLICEVAE(BaseModuleClass):
         # New splicing parameters
         self.splicing_loss_type = splicing_loss_type
         self.splicing_concentration = splicing_concentration
+        self.splicing_loss_weight = splicing_loss_weight
         self.splicing_encoder_architecture = splicing_encoder_architecture
         self.splicing_decoder_architecture = splicing_decoder_architecture
         self.code_dim = code_dim
@@ -464,6 +475,12 @@ class SPLICEVAE(BaseModuleClass):
             self.register_buffer("mod_weights", torch.ones(max_n_modalities))
         elif modality_weights == "universal":
             self.mod_weights = torch.nn.Parameter(torch.ones(max_n_modalities))
+        elif modality_weights == "per_dimension_weighted_average":
+            # Raw unconstrained params; effective splicing weight per dim = normalize(sigmoid(raw))
+            # so that weights sum to 0.5 * n_latent (mean weight = 0.5).
+            # Initialized to 0 so sigmoid(0)=0.5, i.e. equal mix at start.
+            self.dim_weights_raw = torch.nn.Parameter(torch.zeros(self.encoder_latent_dim))
+            self.register_buffer("mod_weights", torch.ones(max_n_modalities))  # unused but keeps _check_adata_modality_weights happy
         else:
             self.mod_weights = torch.nn.Parameter(torch.ones(n_obs, max_n_modalities))
         
@@ -614,6 +631,27 @@ class SPLICEVAE(BaseModuleClass):
             # just glue the two posterior stats end-to-end
             qz_m = torch.cat((qzm_expr, qzm_spl), dim=1)
             qz_v = torch.cat((qzv_expr, qzv_spl), dim=1)
+        elif self.modality_weights == "per_dimension_weighted_average":
+            # Per-dimension splicing contribution weights with mean exactly 0.5.
+            # sigmoid maps raw params to (0,1), then shift so mean is exactly 0.5:
+            # mean(s - mean(s) + 0.5) = 0.5 always, regardless of gradient updates.
+            # Clamp keeps values in (0,1); the clamp only activates if any sigmoid
+            # value deviates from the mean by more than 0.5, which is rare in practice.
+            s = torch.sigmoid(self.dim_weights_raw)
+            w_spl = torch.clamp(s - s.mean() + 0.5, min=1e-4, max=1 - 1e-4)
+            w_expr = 1.0 - w_spl  # (D,)
+            if self.training and torch.rand(1).item() < 0.01:
+                w_np = w_spl.detach().cpu().numpy()
+                print(
+                    f"[per_dim_weights] splicing weights (mean={w_np.mean():.3f}, "
+                    f"min={w_np.min():.3f}, max={w_np.max():.3f}): "
+                    + ", ".join(f"d{i}={v:.3f}" for i, v in enumerate(w_np))
+                )
+            # w_spl/w_expr are (D,); broadcast over batch
+            qz_m = w_expr * qzm_expr + w_spl * qzm_spl
+            # for variance: weighted combination of stds, then square
+            qz_v = (w_expr * qzv_expr.sqrt() + w_spl * qzv_spl.sqrt()) ** 2
+            qz_v = torch.clamp(qz_v, min=1e-6)
         else:
             if self.modality_weights == "cell":
                 weights = self.mod_weights[cell_idx, :]
@@ -890,7 +928,7 @@ class SPLICEVAE(BaseModuleClass):
         
         # Combine both reconstruction losses
         recon_loss_expression = (rl_expression * mask_expr)
-        recon_loss_splicing = rl_splicing
+        recon_loss_splicing = rl_splicing * self.splicing_loss_weight
         recon_loss = recon_loss_expression + recon_loss_splicing
 
         # Compute KL divergence between approximate posterior and prior
@@ -1145,13 +1183,13 @@ class SPLICEVAE(BaseModuleClass):
         Tensor
             A scalar penalty computed over cells where both modalities are observed.
         """
-        return torch.tensor(0.0, device=next(self.parameters()).device)
+        # return torch.tensor(0.0, device=next(self.parameters()).device)
         mask = torch.logical_and(mask1, mask2)
         if self.modality_weights == "concatenate":
             return torch.tensor(0.0, device=next(self.parameters()).device)
         
         if self.modality_penalty == "None":
-            return 0
+            return torch.tensor(0.0, device=next(self.parameters()).device)
         elif self.modality_penalty == "Jeffreys":
             penalty = sym_kld(mod_params_expr[0], mod_params_expr[1].sqrt(), #why are they doing sqrt twice in multivae (orig had this so i kept it the same??)
                                     mod_params_spl[0], mod_params_spl[1].sqrt())

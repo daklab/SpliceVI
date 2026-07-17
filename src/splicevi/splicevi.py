@@ -52,6 +52,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _psi_absolute_change_fn(scales_1: np.ndarray, scales_2: np.ndarray, pseudocounts) -> np.ndarray:
+    """Raw PSI difference (scales_2 - scales_1), used as the DS change function.
+
+    scvi-tools' default change_fn for mode="change" is log2 fold-change, which
+    thresholds `delta` as a ratio, not a difference. PSI is a bounded [0, 1]
+    proportion reported downstream as a raw difference (`effect_size`), so the
+    hypothesis test needs to operate on that same scale for `delta` to mean
+    "minimum |ΔPSI|" as intended, rather than "minimum PSI fold-change".
+    """
+    return scales_2 - scales_1
+
+
 import torch
 from scvi.train import AdversarialTrainingPlan
 
@@ -274,7 +287,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         * ``"equal"`` – equal weight per modality,
         * ``"universal"`` – one global weight per modality (learned),
         * ``"cell"`` – per-cell weights (learned),
-        * ``"concatenate"`` – do not mix; concatenate per-modality latents.
+        * ``"concatenate"`` – do not mix; concatenate per-modality latents,
+        * ``"per_dimension_weighted_average"`` – one learned splicing weight per latent
+          dimension (expression weight = 1 - splicing weight), constrained so the mean
+          weight stays at 0.5 to prevent either modality from dominating globally.
     modality_penalty
         Alignment penalty across modalities: ``"Jeffreys"``, ``"MMD"``, or ``"None"``.
 
@@ -325,6 +341,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         Optional concentration for beta binomial. Ignored for binomial.
     dm_concentration
         For Dirichlet multinomial: ``"atse"`` (per ATSE concentration) or ``"scalar"`` (single shared).
+    splicing_loss_weight
+        Scalar multiplier applied to the splicing reconstruction loss relative to the
+        expression reconstruction loss. Default 1.0 (unweighted).
 
     # --- PartialEncoder knobs (used when splicing_encoder_architecture="partial") ---
     encoder_hidden_dim
@@ -365,7 +384,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         n_junctions: int | None = None,
 
         # --- Modality mixing ---
-        modality_weights: Literal["equal", "cell", "universal", "concatenate"] = "equal",
+        modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
@@ -388,6 +407,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         splicing_loss_type: Literal["binomial", "beta_binomial", "dirichlet_multinomial"] = "dirichlet_multinomial",
         dm_concentration: Literal["atse", "scalar"] = "atse",
         splicing_concentration: float | None = None,
+        splicing_loss_weight: float = 1.0,
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
@@ -454,6 +474,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             splicing_loss_type=splicing_loss_type,
             splicing_concentration=splicing_concentration,
             dm_concentration=dm_concentration,
+            splicing_loss_weight=splicing_loss_weight,
 
             # architectures
             splicing_encoder_architecture=splicing_encoder_architecture,
@@ -480,7 +501,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"spl_dec={splicing_decoder_architecture} | "
             f"gene_like={gene_likelihood}, disp={dispersion} | "
             f"splicing_loss={splicing_loss_type}, dm_conc={dm_concentration}, "
-            f"sp_conc={splicing_concentration} | "
+            f"sp_conc={splicing_concentration}, sp_loss_weight={splicing_loss_weight} | "
             f"mix={modality_weights}, penalty={modality_penalty} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
@@ -1458,6 +1479,11 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             scsplicing_ratio_properties,
             var_idx=np.arange(adata["splicing"].shape[1])[: self.n_junctions],
         )
+
+        # PSI is a bounded [0, 1] proportion reported downstream as a raw difference
+        # (`effect_size`); use that same scale for the `delta` hypothesis test instead
+        # of scvi-tools' default log2 fold-change, so `delta` means "minimum |ΔPSI|".
+        kwargs.setdefault("change_fn", _psi_absolute_change_fn)
 
         result = _de_core(
             adata_manager=self.get_anndata_manager(adata, required=True),
