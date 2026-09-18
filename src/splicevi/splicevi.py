@@ -344,6 +344,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     splicing_loss_weight
         Scalar multiplier applied to the splicing reconstruction loss relative to the
         expression reconstruction loss. Default 1.0 (unweighted).
+    lambda_prior
+        Weight of the L2 penalty shrinking the learned log-concentration (log_phi_j)
+        toward 0, active when splicing_loss_type is "beta_binomial" or
+        "dirichlet_multinomial". Default 1e-2. Set to 0.0 to disable.
 
     # --- PartialEncoder knobs (used when splicing_encoder_architecture="partial") ---
     encoder_hidden_dim
@@ -408,6 +412,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         dm_concentration: Literal["atse", "scalar"] = "atse",
         splicing_concentration: float | None = None,
         splicing_loss_weight: float = 1.0,
+        lambda_prior: float = 1e-2,
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
@@ -475,6 +480,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             splicing_concentration=splicing_concentration,
             dm_concentration=dm_concentration,
             splicing_loss_weight=splicing_loss_weight,
+            lambda_prior=lambda_prior,
 
             # architectures
             splicing_encoder_architecture=splicing_encoder_architecture,
@@ -501,7 +507,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"spl_dec={splicing_decoder_architecture} | "
             f"gene_like={gene_likelihood}, disp={dispersion} | "
             f"splicing_loss={splicing_loss_type}, dm_conc={dm_concentration}, "
-            f"sp_conc={splicing_concentration}, sp_loss_weight={splicing_loss_weight} | "
+            f"sp_conc={splicing_concentration}, sp_loss_weight={splicing_loss_weight}, "
+            f"lambda_prior={lambda_prior} | "
             f"mix={modality_weights}, penalty={modality_penalty} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
@@ -516,6 +523,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         self.n_junctions = n_junctions
         self.get_normalized_function_name = "get_normalized_splicing"
         self.dm_concentration = dm_concentration
+        self.lambda_prior = lambda_prior
 
         if self.adata is not None:
             if initialize_embeddings_from_pca and splicing_encoder_architecture == "partial":

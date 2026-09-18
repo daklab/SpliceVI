@@ -195,6 +195,14 @@ class SPLICEVAE(BaseModuleClass):
         Scalar multiplier applied to the splicing reconstruction loss before it is
         combined with the expression reconstruction loss. Values > 1 upweight splicing
         relative to expression; values < 1 downweight it.
+    lambda_prior : float, default 1e-2
+        Weight of the L2 penalty (torch.square(log_phi_j).sum()) pulling the learned
+        per-ATSE (or scalar) log-concentration toward 0, added to the loss whenever
+        splicing_loss_type is "beta_binomial" or "dirichlet_multinomial". This shrinks
+        log_phi_j away from wherever it's initialized (not toward the init value) --
+        ATSEs with weak/sparse reconstruction-loss gradient collapse toward this prior's
+        fixed point (log_phi_j=0, i.e. phi=softplus(0)~=0.69) while ATSEs with strong
+        data support resist it. Higher values shrink more aggressively; 0.0 disables it.
 
     # --- PartialEncoder knobs (splicing_encoder_architecture="partial") ---
     code_dim : int, default 16
@@ -266,6 +274,7 @@ class SPLICEVAE(BaseModuleClass):
         splicing_concentration: float | None = None,
         dm_concentration: Literal["atse", "scalar"] = "atse",
         splicing_loss_weight: float = 1.0,
+        lambda_prior: float = 1e-2,
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
         code_dim: int = 16,
@@ -323,6 +332,7 @@ class SPLICEVAE(BaseModuleClass):
         self.code_dim = code_dim
         self.h_hidden_dim = h_hidden_dim
         self.dm_concentration = dm_concentration
+        self.lambda_prior = lambda_prior
 
         cat_list = [n_batch] + list(n_cats_per_cov) if n_cats_per_cov is not None else []
         encoder_cat_list = cat_list if encode_covariates else None
@@ -958,10 +968,8 @@ class SPLICEVAE(BaseModuleClass):
         weighted_kl_local = kl_weight * kl_local_for_warmup + kl_div_paired
 
         # ───── L2 prior on log-concentrations ϕ_j (global → per-cell) ────
-        lambda_prior = 1e-2                       # can tune 
-
         if self.splicing_loss_type == "beta_binomial" or self.splicing_loss_type == "dirichlet_multinomial": #add dirichlet multinomial atse concentration stuff
-            prior_loss = lambda_prior * torch.square(self.log_phi_j).sum() / x.size(0)  # divide by batch_size so strength is constant
+            prior_loss = self.lambda_prior * torch.square(self.log_phi_j).sum() / x.size(0)  # divide by batch_size so strength is constant
         else:
             prior_loss = 0.0 #do not compute prior loss if we're not using beta_binomial distribution
         
