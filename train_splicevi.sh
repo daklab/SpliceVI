@@ -8,7 +8,6 @@
 #SBATCH --exclude=ne1dg7-001,ne1dg7-002,ne1dg7-003,ne1dg7-004,ne1dg7-005,ne1dg7-006,ne1dg7-007,ne1dg7-008,ne1dg7-009,ne1dg7-010
 #SBATCH --cpus-per-task=4
 #SBATCH --time=20:00:00
--u svai
 
 set -euo pipefail
 # train_splicevi.sh
@@ -59,12 +58,25 @@ LR=1e-4                 # Learning rate
 BATCH_SIZE=256          # Minibatch size
 N_EPOCHS_KL_WARMUP=200  # KL warmup epochs
 N_LATENT=30             # Latent dimensionality
+N_HIDDEN=""             # Hidden width (expression encoder, decoders). Empty = auto min(128, sqrt(n_junctions)) = 128 here
 DROPOUT_RATE=0.01       # Model dropout rate
 SPLICING_LOSS_TYPE="dirichlet_multinomial"  # binomial | beta_binomial | dirichlet_multinomial
+SPLICING_LOSS_WEIGHT=1.0            # Multiplier on the splicing recon loss relative to expression
+
+# DM/beta-binomial concentration: phi = PHI_FLOOR + softplus(log_phi_j), one per ATSE.
+# Defaults below are the original behavior (effective initial phi ~4.6, L2 pull of log_phi_j toward 0).
+LAMBDA_PRIOR=1e-2                   # L2 weight on log_phi_j (only used when PHI_PRIOR="l2_log")
+PHI_FLOOR=0.0                       # Minimum concentration (0.0 = no floor; 2.0 = LeafletFA-style floor)
+PHI_PRIOR="l2_log"                  # l2_log | gamma | none
+PHI_PRIOR_SHAPE=2.0                 # Gamma shape (PHI_PRIOR=gamma)
+PHI_PRIOR_RATE=0.1                  # Gamma rate; mean = shape/rate = 20
+PHI_INIT="log100"                   # log100 (original) | prior (sample phi from the Gamma prior)
 
 # 4) Optional architecture knobs (SPLICEVI __init__ parameters)
 MODALITY_WEIGHTS="per_dimension_weighted_average"             # equal | cell | universal | concatenate | per_dimension_weighted_average
 MODALITY_PENALTY="Jeffreys"          # Jeffreys | MMD | None
+VARIANCE_MIXING="sqrt_weights"       # sqrt_weights | linear | squared  (NOT used when MODALITY_WEIGHTS=per_dimension_weighted_average or concatenate)
+MASK_CELLS_WITHOUT_SPLICING=false    # true: cells with no observed junction get no splicing weight in the mix / alignment penalty
 N_LAYERS_ENCODER=2
 N_LAYERS_DECODER=2                   # not used if linear
 USE_BATCH_NORM="none"                # encoder | decoder | none | both
@@ -180,10 +192,14 @@ python "${SCRIPT_PATH}" \
   --batch_size "${BATCH_SIZE}" \
   --n_epochs_kl_warmup "${N_EPOCHS_KL_WARMUP}" \
   --n_latent "${N_LATENT}" \
+  ${N_HIDDEN:+--n_hidden "${N_HIDDEN}"} \
   --dropout_rate "${DROPOUT_RATE}" \
   --splicing_loss_type "${SPLICING_LOSS_TYPE}" \
+  --splicing_loss_weight "${SPLICING_LOSS_WEIGHT}" \
   --modality_weights "${MODALITY_WEIGHTS}" \
   --modality_penalty "${MODALITY_PENALTY}" \
+  --variance_mixing "${VARIANCE_MIXING}" \
+  --mask_cells_without_splicing "${MASK_CELLS_WITHOUT_SPLICING}" \
   --n_layers_encoder "${N_LAYERS_ENCODER}" \
   --n_layers_decoder "${N_LAYERS_DECODER}" \
   --use_batch_norm "${USE_BATCH_NORM}" \
@@ -194,6 +210,12 @@ python "${SCRIPT_PATH}" \
   --gene_likelihood "${GENE_LIKELIHOOD}" \
   --dispersion "${DISPERSION}" \
   --dm_concentration "${DM_CONCENTRATION}" \
+  --lambda_prior "${LAMBDA_PRIOR}" \
+  --phi_floor "${PHI_FLOOR}" \
+  --phi_prior "${PHI_PRIOR}" \
+  --phi_prior_shape "${PHI_PRIOR_SHAPE}" \
+  --phi_prior_rate "${PHI_PRIOR_RATE}" \
+  --phi_init "${PHI_INIT}" \
   --encoder_hidden_dim "${ENCODER_HIDDEN_DIM}" \
   --code_dim "${CODE_DIM}" \
   --h_hidden_dim "${H_HIDDEN_DIM}" \
