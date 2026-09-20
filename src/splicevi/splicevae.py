@@ -192,8 +192,6 @@ class SPLICEVAE(BaseModuleClass):
         "binomial" expects junction counts and ATSE totals.
         "beta_binomial" uses a beta binomial with a learned concentration.
         "dirichlet_multinomial" uses grouped softmax within ATSEs.
-    splicing_concentration : float or None, default None
-        Optional scalar concentration for the beta binomial case.
     dm_concentration : {"atse","scalar"}, default "atse"
         For Dirichlet multinomial. Controls whether the concentration is per ATSE or scalar.
     splicing_loss_weight : float, default 1.0
@@ -246,6 +244,12 @@ class SPLICEVAE(BaseModuleClass):
         stays at 0.5 (preventing one modality from dominating globally).
     modality_penalty : {"Jeffreys","MMD","None"}, default "Jeffreys"
         Alignment penalty between the two posteriors on paired cells.
+    mask_cells_without_splicing : bool, default False
+        If True, a cell with no observed junction (``psi_observed_mask`` all 0) is treated as
+        lacking the splicing modality: it gets no splicing weight in the latent mix and is
+        excluded from the modality-alignment penalty. If False (original behavior) every cell
+        always counts as having splicing, so a cell with no splicing reads still has its
+        (uninformed) splicing posterior averaged into the joint latent.
     variance_mixing : {"sqrt_weights","linear","squared"}, default "sqrt_weights"
         How the two encoders' variances are combined into the joint posterior variance for
         ``modality_weights`` in {"equal","cell","universal"}. The mean is always the
@@ -299,7 +303,6 @@ class SPLICEVAE(BaseModuleClass):
 
         # --- Splicing likelihood ---
         splicing_loss_type: Literal["binomial", "beta_binomial", "dirichlet_multinomial"] = "dirichlet_multinomial",
-        splicing_concentration: float | None = None,
         dm_concentration: Literal["atse", "scalar"] = "atse",
         splicing_loss_weight: float = 1.0,
         lambda_prior: float = 1e-2,
@@ -320,6 +323,7 @@ class SPLICEVAE(BaseModuleClass):
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
+        mask_cells_without_splicing: bool = False,
 
         # --- Misc ---
         **model_kwargs,
@@ -359,7 +363,6 @@ class SPLICEVAE(BaseModuleClass):
 
         # New splicing parameters
         self.splicing_loss_type = splicing_loss_type
-        self.splicing_concentration = splicing_concentration
         self.splicing_loss_weight = splicing_loss_weight
         self.splicing_encoder_architecture = splicing_encoder_architecture
         self.splicing_decoder_architecture = splicing_decoder_architecture
@@ -527,6 +530,7 @@ class SPLICEVAE(BaseModuleClass):
         if variance_mixing not in ("sqrt_weights", "linear", "squared"):
             raise ValueError("variance_mixing must be one of ['sqrt_weights', 'linear', 'squared']")
         self.variance_mixing = variance_mixing
+        self.mask_cells_without_splicing = bool(mask_cells_without_splicing)
         self.n_modalities = int(n_input_genes > 0) + int(n_input_junctions > 0)
         max_n_modalities = 2
         if modality_weights == "equal":
@@ -544,6 +548,16 @@ class SPLICEVAE(BaseModuleClass):
         
         # gate that controls how much of the "other" half a decoder can see (0=off, 1=on)
         self.register_buffer("cross_gate", torch.tensor(0.0))  # start closed during warmup
+
+    def _splicing_cell_mask(self, x_spl: torch.Tensor, psi_mask: torch.Tensor | None) -> torch.Tensor:
+        """Per-cell boolean: does this cell count as having the splicing modality?
+
+        Default (original behavior): always True (the threshold is below any attainable sum).
+        With ``mask_cells_without_splicing``: True only if the cell has >= 1 observed junction.
+        """
+        if self.mask_cells_without_splicing and psi_mask is not None:
+            return psi_mask.sum(dim=1) > 0
+        return x_spl.sum(dim=1) > -10000000000000
 
     def init_log_phi(self, size: int | None) -> nn.Parameter:
         """Initial raw concentration parameter. ``size=None`` gives the scalar DM parameter.
@@ -622,7 +636,7 @@ class SPLICEVAE(BaseModuleClass):
         x_expr = x[:, : self.n_input_genes]
         x_spl = x[:, self.n_input_genes : (self.n_input_genes + self.n_input_junctions)]
         mask_expr = x_expr.sum(dim=1) > 0
-        mask_spl = x_spl.sum(dim=1) > -10000000000000
+        mask_spl = self._splicing_cell_mask(x_spl, mask)
 
         if cont_covs is not None and self.encode_covariates:
             encoder_input_expr = torch.cat((x_expr, cont_covs), dim=-1)
@@ -1002,7 +1016,7 @@ class SPLICEVAE(BaseModuleClass):
 
         # Create masks for the modality alignment penalty
         mask_expr = x_expr.sum(dim=1) > 0
-        mask_spl = x_spl.sum(dim=1) > -10000000
+        mask_spl = self._splicing_cell_mask(x_spl, psi_mask)
     
         # Compute Expression loss
         px_rate = generative_outputs["px_rate"]
@@ -1201,16 +1215,10 @@ class SPLICEVAE(BaseModuleClass):
             return -log_likelihood.sum(dim=1)
         
         elif self.splicing_loss_type == "dirichlet_multinomial":
-            # 1) invert sigmoid to get raw logits
-            logits = torch.log(p) - torch.log1p(-p)
+            # p is already group-softmaxed within each ATSE by generative(), so it can be used
+            # directly as the Dirichlet mean; alpha = p * concentration below.
 
-            # 2) group‐softmax on each ATSE
-            lse = group_logsumexp(self.junc2atse, logits)            # → (N, G)
-            sm_logits = subtract_group_logsumexp(
-                self.junc2atse, logits, lse
-            )                                                       # → (N, J)
-
-            # 3) build your concentration per junction from phi
+            # build the concentration per junction from phi
             #    phi may be:
             #      • a scalar tensor → same phi for every junction
             #      • a 1-D tensor of length G → one phi per ATSE
@@ -1238,7 +1246,7 @@ class SPLICEVAE(BaseModuleClass):
             conc = conc_junc.unsqueeze(0) # shape (1, J)
             alpha = p * conc # broadcasting (1, J) → (N, J)
 
-            # 4) feed into our DM‐likelihood helper
+            # feed into the DM-likelihood helper
             ll = self.dirichlet_multinomial_likelihood(
                 counts=junc_counts,
                 atse_counts=atse_counts,

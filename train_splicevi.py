@@ -277,9 +277,14 @@ def main():
     # ------------------------------
     # 5. Initialize model
     # ------------------------------
-    # Allow n_latent to be forced to int
-    if getattr(args, "n_latent", None) is not None:
-        args.n_latent = int(args.n_latent)
+    # Params typed ``int | None`` (e.g. n_latent, n_hidden) default to None, so the CLI parses them
+    # as float; cast whole-number values back to int (nn.Linear rejects 128.0).
+    for name in ("n_latent", "n_hidden"):
+        value = getattr(args, name, None)
+        if value is not None:
+            if float(value) != int(value):
+                raise ValueError(f"--{name} must be a whole number, got {value}")
+            setattr(args, name, int(value))
 
     model_kwargs = {
         name: getattr(args, name)

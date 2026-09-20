@@ -293,6 +293,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
           weight stays at 0.5 to prevent either modality from dominating globally.
     modality_penalty
         Alignment penalty across modalities: ``"Jeffreys"``, ``"MMD"``, or ``"None"``.
+    mask_cells_without_splicing
+        If True, cells with no observed junction get no splicing weight in the latent mix and are
+        excluded from the alignment penalty (default False = original behavior, where every cell
+        always counts as having splicing).
     variance_mixing
         How the two encoders' variances are combined for ``modality_weights`` in
         {"equal","cell","universal"}: ``"sqrt_weights"`` (default, MultiVI heuristic,
@@ -313,10 +317,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         * ``"partial"`` – `PartialEncoderEDDIFaster`.
     splicing_decoder_architecture
         Splicing decoder:
-        * ``"vanilla"`` – nonlinear `DecoderSplice`,
+        * ``"vanilla"`` (default) – nonlinear `DecoderSplice`,
         * ``"linear"`` – linear decoder.
     expression_architecture
-        Expression decoder: ``"vanilla"`` (nonlinear) or ``"linear"`` (linear decoder).
+        Expression decoder: ``"vanilla"`` (default, nonlinear) or ``"linear"`` (linear decoder).
 
     # --- Shared SCVI-style encoder/decoder hyperparameters ---
     n_hidden
@@ -343,8 +347,6 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     # --- Splicing likelihood ---
     splicing_loss_type
         Splicing reconstruction loss: ``"binomial"``, ``"beta_binomial"``, or ``"dirichlet_multinomial"``.
-    splicing_concentration
-        Optional concentration for beta binomial. Ignored for binomial.
     dm_concentration
         For Dirichlet multinomial: ``"atse"`` (per ATSE concentration) or ``"scalar"`` (single shared).
     splicing_loss_weight
@@ -408,6 +410,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
+        mask_cells_without_splicing: bool = False,
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int | None = None,
@@ -428,7 +431,6 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         # --- Splicing likelihood ---
         splicing_loss_type: Literal["binomial", "beta_binomial", "dirichlet_multinomial"] = "dirichlet_multinomial",
         dm_concentration: Literal["atse", "scalar"] = "atse",
-        splicing_concentration: float | None = None,
         splicing_loss_weight: float = 1.0,
         lambda_prior: float = 1e-2,
         phi_floor: float = 0.0,
@@ -439,8 +441,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
-        splicing_decoder_architecture: Literal["vanilla", "linear"] = "linear",
-        expression_architecture: Literal["vanilla", "linear"] = "linear",
+        splicing_decoder_architecture: Literal["vanilla", "linear"] = "vanilla",
+        expression_architecture: Literal["vanilla", "linear"] = "vanilla",
 
         # --- PartialEncoder knobs (splicing_architecture="partial") ---
         encoder_hidden_dim: int = 128,
@@ -478,6 +480,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             modality_weights=modality_weights,
             modality_penalty=modality_penalty,
             variance_mixing=variance_mixing,
+            mask_cells_without_splicing=mask_cells_without_splicing,
             n_batch=self.summary_stats.n_batch,
             n_obs=adata.n_obs,
             n_labels=self.summary_stats.get("n_labels", 0),
@@ -501,7 +504,6 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             gene_likelihood=gene_likelihood,
             gene_dispersion=dispersion,
             splicing_loss_type=splicing_loss_type,
-            splicing_concentration=splicing_concentration,
             dm_concentration=dm_concentration,
             splicing_loss_weight=splicing_loss_weight,
             lambda_prior=lambda_prior,
@@ -536,9 +538,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"spl_dec={splicing_decoder_architecture} | "
             f"gene_like={gene_likelihood}, disp={dispersion} | "
             f"splicing_loss={splicing_loss_type}, dm_conc={dm_concentration}, "
-            f"sp_conc={splicing_concentration}, sp_loss_weight={splicing_loss_weight}, "
+            f"sp_loss_weight={splicing_loss_weight}, "
             f"lambda_prior={lambda_prior}, phi_prior={phi_prior}, phi_floor={phi_floor}, phi_init={phi_init} | "
-            f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing} | "
+            f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing}, mask_no_spl={mask_cells_without_splicing} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
             f"max_nobs={max_nobs}) | "
