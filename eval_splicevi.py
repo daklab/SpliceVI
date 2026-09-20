@@ -1267,16 +1267,17 @@ def build_argparser():
     parser.add_argument(
         "--cross_fold_k",
         type=int,
-        default=5,
-        help="Number of folds for cross-fold classification (3 is steadier for --cross_fold_cv group "
-             "when the rarest class is carried by only ~4 mice).",
+        default=4,
+        help="Number of folds for cross-fold classification (default 4; with --cross_fold_cv group "
+             "classes carried by fewer than k groups are dropped).",
     )
     parser.add_argument(
         "--cross_fold_cv",
         choices=["stratified", "group"],
-        default="stratified",
-        help="stratified = cell-level StratifiedKFold (default). group = StratifiedGroupKFold holding out "
-             "whole --cross_fold_group_by groups (e.g. mice) so no group is on both sides of a fold.",
+        default="group",
+        help="group (default) = StratifiedGroupKFold holding out whole --cross_fold_group_by groups "
+             "(e.g. mice) so no group is on both sides of a fold. stratified = cell-level StratifiedKFold "
+             "(the original behavior).",
     )
     parser.add_argument(
         "--cross_fold_group_by",

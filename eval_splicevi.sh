@@ -186,7 +186,9 @@ CROSS_FOLD_TARGETS=(
   "tissue_celltype"
   # "tissue"
 )
-CROSS_FOLD_K=5
+CROSS_FOLD_K=4                 # folds
+CROSS_FOLD_CV="group"          # group (whole mice held out, default) | stratified (cell-level)
+CROSS_FOLD_GROUP_BY="mouse.id" # obs column defining the groups when CROSS_FOLD_CV="group"
 CROSS_FOLD_CLASSIFIERS=(
   "logreg"
   # "rf"
@@ -269,6 +271,7 @@ for m in "${CROSS_FOLD_METRICS[@]}"; do
   echo "         - ${m}"
 done
 echo "[JOB] CROSS_FOLD_K      : ${CROSS_FOLD_K}"
+echo "[JOB] CROSS_FOLD_CV     : ${CROSS_FOLD_CV} (group by ${CROSS_FOLD_GROUP_BY})"
 echo "=================================================================="
 
 #######################################
@@ -345,6 +348,8 @@ python "${SCRIPT_PATH}" \
   --cross_fold_splits "${CROSS_FOLD_SPLITS}" \
   --cross_fold_targets ${CROSS_FOLD_TARGETS_JOINED} \
   --cross_fold_k "${CROSS_FOLD_K}" \
+  --cross_fold_cv "${CROSS_FOLD_CV}" \
+  --cross_fold_group_by "${CROSS_FOLD_GROUP_BY}" \
   --cross_fold_classifiers ${CROSS_FOLD_CLASSIFIERS_JOINED} \
   --cross_fold_metrics ${CROSS_FOLD_METRICS_JOINED} \
   --evals ${EVALS_JOINED} \
