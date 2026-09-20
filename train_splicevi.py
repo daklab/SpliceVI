@@ -16,8 +16,10 @@ This script is designed to be:
 """
 
 import os
+import json
 import inspect
 import argparse
+from datetime import datetime, timezone
 
 import scanpy as sc
 from splicevi import SPLICEVI
@@ -48,6 +50,31 @@ def str2bool(v):
         if v_lower in {"no", "false", "f", "n", "0", "none", ""}:
             return False
     raise argparse.ArgumentTypeError("Boolean value expected.")
+
+
+def write_experiment_fragment(experiment_dir, model_dir, full_config, run):
+    """Write a train_<model_basename>.json fragment for the experiment-tracking
+    leaderboard (see SpliceVI-utils/script_outputs/experiments/tally_experiments.py).
+    Best-effort: a failure here must never fail the training job itself.
+    """
+    try:
+        os.makedirs(experiment_dir, exist_ok=True)
+        model_basename = os.path.basename(os.path.normpath(model_dir))
+        fragment = {
+            "model_dir": model_dir,
+            "model_kind": "splicevi",
+            "config": full_config,
+            "wandb_run_url": getattr(run, "url", None) if run is not None else None,
+            "wandb_run_id": getattr(run, "id", None) if run is not None else None,
+            "wandb_project": getattr(run, "project", None) if run is not None else None,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }
+        out_path = os.path.join(experiment_dir, f"train_{model_basename}.json")
+        with open(out_path, "w") as f:
+            json.dump(fragment, f, indent=2, default=str)
+        print(f"[EXPERIMENT] Wrote {out_path}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[EXPERIMENT] WARNING: failed to write experiment fragment: {e}")
 
 
 def build_argparser(init_defaults, train_defaults):
@@ -114,6 +141,17 @@ def build_argparser(init_defaults, train_defaults):
         type=int,
         default=1000,
         help="How often (in training steps) to log model parameters/gradients.",
+    )
+
+    # Optional: experiment-tracking leaderboard hook (see SpliceVI-utils/script_outputs/experiments/)
+    parser.add_argument(
+        "--experiment_dir",
+        type=str,
+        default=None,
+        help=(
+            "If set, write a train_<model_basename>.json fragment into this directory "
+            "with the resolved config and W&B run link, for the experiment-tracking leaderboard."
+        ),
     )
 
     # Optional: override SPLICEVI __init__ arguments
@@ -359,6 +397,9 @@ def main():
     print(f"[SAVE] Saving trained model to: {args.model_dir}")
     model.save(args.model_dir, overwrite=True)
     print("[SAVE] Model saved successfully.")
+
+    if args.experiment_dir:
+        write_experiment_fragment(args.experiment_dir, args.model_dir, full_config, run)
 
     if run is not None:
         print("[W&B] Finishing W&B run.")

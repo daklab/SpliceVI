@@ -11,7 +11,6 @@ Evaluation-only pipeline for SPLICEVI:
    - Unsupervised clustering + cluster consistency
    - Train split latent quality metrics
    - Test split latent quality metrics
-   - Age R² aggregation + CSV
    - Masked-ATSE imputation on multiple masked TEST files
 
 4. Save figures under a user-specified output directory
@@ -20,7 +19,11 @@ W&B logging is optional and controlled via CLI flags (typically from a shell scr
 """
 
 import os
+import json
+import hashlib
+import warnings
 import argparse
+from datetime import datetime, timezone
 from typing import Tuple, Optional, List, Dict
 
 import scanpy as sc
@@ -36,8 +39,8 @@ import seaborn as sns
 
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
-from sklearn.model_selection import train_test_split, StratifiedKFold
-from sklearn.linear_model import LogisticRegression, RidgeCV
+from sklearn.model_selection import train_test_split, StratifiedKFold, StratifiedGroupKFold
+from sklearn.linear_model import LogisticRegression
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import make_pipeline
@@ -191,11 +194,9 @@ def apply_obs_mapping_from_csv(mdata, mapping_csv: str):
 # ---------------------------------------------------------------------
 # Evaluation helper: train/test split metrics
 # ---------------------------------------------------------------------
-AGE_R2_RECORDS = []
 CROSS_FOLD_RECORDS = []
 CROSS_FOLD_SIGNIFICANCE = []
 CROSS_FOLD_CLASS_RECORDS = []
-MIN_GROUP_N = 25  # minimum cells per tissue | celltype group
 
 
 def evaluate_split(
@@ -213,7 +214,6 @@ def evaluate_split(
       - PCA 90% variance
       - silhouette scores (broad & medium)
       - LR classification on medium cell type
-      - Age R² overall + per tissue|celltype group
     """
     print(f"\n=== [EVAL] Evaluating {name.upper()} split for latent space '{Z_type}' ===")
     if precomputed_Z is not None:
@@ -287,100 +287,41 @@ def evaluate_split(
             }
         )
 
-    # Age regression tasks
-    if "age_numeric" in mdata.obs:
-        print(f"[EVAL/{name}-{Z_type}] Running age R² regression tasks...")
-        ages_full = mdata.obs["age_numeric"].astype(float).values
-        target_ages = np.array([3.0, 18.0, 24.0], dtype=float)
-        mask_age = np.isin(ages_full, target_ages)
-        n_kept = int(mask_age.sum())
-        print(f"[EVAL/{name}-{Z_type}] Kept {n_kept}/{len(mask_age)} cells at ages {target_ages.tolist()}")
 
-        if n_kept < MIN_GROUP_N:
-            print(
-                f"[EVAL/{name}-{Z_type}] Only {n_kept} cells with target ages; skipping age R² tasks."
-            )
-            return
+def cross_fold_hash(splits) -> str:
+    """Short id of a fold assignment, so runs (and model kinds) can be checked for identical folds."""
+    h = hashlib.sha1()
+    for _, ev in splits:
+        h.update(np.asarray(ev, dtype=np.int64).tobytes())
+        h.update(b"|")
+    return h.hexdigest()[:12]
 
-        ages = ages_full[mask_age]
-        Z_use = Z[mask_age, :]
-        obs_local = mdata.obs.iloc[np.where(mask_age)[0]].copy()
 
-        X_latent = StandardScaler().fit_transform(Z_use)
-        X_tr, X_ev, y_tr, y_ev = train_test_split(
-            X_latent, ages, test_size=0.2, random_state=0
-        )
+def plan_group_splits(y: np.ndarray, groups: np.ndarray, k: int, tries: int = 50):
+    """StratifiedGroupKFold (whole groups, e.g. mice, held out together) with seed retries.
 
-        # Global R²
-        if np.std(y_tr) == 0.0 or np.std(y_ev) == 0.0:
-            print(
-                f"[EVAL/{name}-{Z_type}] Degenerate age variance after filtering; skipping global age R²."
-            )
-        else:
-            ridge = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(X_tr, y_tr)
-            r2_age = ridge.score(X_ev, y_ev)
-            print(f"[EVAL/{name}-{Z_type}] Global age R²: {r2_age:.4f}")
-            if wandb is not None:
-                wandb.log(
-                    {
-                        f"real-{name}-{Z_type}/age_r2": r2_age,
-                        f"real-{name}-{Z_type}/age_n_cells": n_kept,
-                    }
-                )
-
-        # Per (tissue | cell_type) R²
-        if "tissue" in obs_local:
-            ct_key = cell_type_classification_key
-            tissue_series = obs_local["tissue"].astype(str)
-            ct_series = obs_local[ct_key].astype(str)
-            pair = tissue_series + " | " + ct_series
-            pair_unique = pair.unique()
-
-            print(
-                f"[EVAL/{name}-{Z_type}] Computing per-group age R² for {len(pair_unique)} tissue|cell_type pairs..."
-            )
-
-            for p in pair_unique:
-                idx = np.where(pair.values == p)[0]
-                if idx.size < MIN_GROUP_N:
-                    continue
-
-                Zg = X_latent[idx]
-                yg = ages[idx]
-
-                if np.std(yg) == 0.0:
-                    continue
-
-                Ztr, Zev, ytr, yev = train_test_split(
-                    Zg, yg, test_size=0.2, random_state=0
-                )
-                if (
-                    Ztr.shape[0] < 2
-                    or Zev.shape[0] < 2
-                    or np.std(ytr) == 0.0
-                    or np.std(yev) == 0.0
-                ):
-                    continue
-
-                try:
-                    rg = RidgeCV(alphas=np.logspace(-2, 3, 20), cv=5).fit(Ztr, ytr)
-                    r2g = rg.score(Zev, yev)
-                except Exception:
-                    continue
-
-                AGE_R2_RECORDS.append(
-                    {
-                        "dataset": name,
-                        "space": Z_type,
-                        "pair": p,
-                        "tissue": p.split(" | ", 1)[0],
-                        "cell_type": p.split(" | ", 1)[1],
-                        "r2": float(r2g),
-                        "n": int(idx.size),
-                    }
-                )
-    else:
-        print(f"[EVAL/{name}-{Z_type}] No 'age_numeric' column found; skipping age R².")
+    Returns (splits, note). Whole-group stratification can hand back a fold whose test (or
+    train) side is missing a class, so several seeds are tried and the first structure with
+    every class on both sides of every fold is used; otherwise the least-violating one is
+    returned and ``note`` says how many folds are affected.
+    """
+    classes = set(np.unique(y))
+    placeholder = np.zeros((len(y), 1))
+    best, best_bad = None, None
+    for attempt in range(tries):
+        sgkf = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=42 + attempt)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            splits = list(sgkf.split(placeholder, y, groups=groups))
+        bad_train = sum(set(np.unique(y[tr])) != classes for tr, _ in splits)
+        bad_test = sum(set(np.unique(y[ev])) != classes for _, ev in splits)
+        bad = 10 * bad_train + bad_test
+        if best is None or bad < best_bad:
+            best, best_bad, best_counts = splits, bad, (bad_train, bad_test)
+        if bad == 0:
+            return splits, ""
+    return best, (f"no seed gave every class on both sides of every fold; using the best one "
+                  f"({best_counts[0]} folds missing a class in TRAIN, {best_counts[1]} in TEST)")
 
 
 def run_cross_fold_classification(
@@ -395,9 +336,17 @@ def run_cross_fold_classification(
     wandb=None,
     do_dummy: bool = False,
     do_label_permute: bool = False,
+    cv_mode: str = "stratified",
+    group_by: Optional[str] = None,
 ):
     """
     K-fold classification for multiple obs targets across latent spaces.
+
+    cv_mode="stratified" (default) splits at the cell level. cv_mode="group" holds out whole
+    groups (``group_by``, e.g. mouse.id) with StratifiedGroupKFold so no group is on both
+    sides of a fold; classes present in fewer than k groups are dropped, and the target
+    equal to ``group_by`` is skipped. Group counts per class are written to
+    cross_fold_groups_per_class_<split>_<target>.csv before any fitting.
 
     Evaluates Logistic Regression and/or Random Forest across joint/expression/splicing
     embeddings using shared StratifiedKFold splits, logs mean±std metrics, and records
@@ -499,6 +448,35 @@ def run_cross_fold_classification(
                 f"[CROSS-FOLD] Target '{target}' | removing {len(drop_labels)} classes with <{k_folds} samples: {list(drop_labels)}"
             )
 
+        groups = None
+        if cv_mode == "group":
+            if group_by is None or group_by not in mdata.obs.columns:
+                print(f"[CROSS-FOLD] cv_mode=group but group_by '{group_by}' is not in obs; skipping target '{target}'.")
+                continue
+            if target == group_by:
+                print(f"[CROSS-FOLD] Target '{target}' is the grouping column; whole groups of the label being "
+                      f"predicted cannot be held out. Skipping.")
+                continue
+            groups = mdata.obs[group_by].astype("string").fillna("NA").to_numpy()[keep_indices]
+            lab_arr = labels_series.to_numpy()
+            gpc = pd.DataFrame({"label": lab_arr, "group": groups}).groupby("label").agg(
+                n_groups=("group", "nunique"), n_cells=("group", "size"))
+            gpc["dropped"] = gpc["n_groups"] < k_folds
+            gpc_csv = os.path.join(fig_dir, f"cross_fold_groups_per_class_{split_name}_{target}.csv")
+            gpc.reset_index().to_csv(gpc_csv, index=False)
+            print(f"[CROSS-FOLD] Target '{target}' | {group_by} groups per class: min={int(gpc.n_groups.min())} "
+                  f"median={float(gpc.n_groups.median()):.0f} max={int(gpc.n_groups.max())} "
+                  f"(table -> {gpc_csv})")
+            thin = gpc.index[gpc["dropped"]]
+            if len(thin) > 0:
+                mask_keep_g = ~labels_series.isin(thin)
+                labels_series = labels_series[mask_keep_g]
+                keep_indices = keep_indices[mask_keep_g.to_numpy()]
+                groups = groups[mask_keep_g.to_numpy()]
+                print(f"[CROSS-FOLD] Target '{target}' | dropping {len(thin)} classes present in < {k_folds} "
+                      f"{group_by} groups (cannot fill every held-out fold): {list(thin)[:20]}"
+                      f"{' ...' if len(thin) > 20 else ''}")
+
         label_order = sorted(labels_series.unique())
         y = labels_series.to_numpy()
         n_samples = int(y.size)
@@ -521,9 +499,18 @@ def run_cross_fold_classification(
             f"[CROSS-FOLD] Target '{target}' | classes={n_classes}, n={n_samples}, folds={k_use}"
         )
 
-        # build stratified splits with the requested number of folds
-        skf = StratifiedKFold(n_splits=k_use, shuffle=True, random_state=42)
-        splits = list(skf.split(np.zeros(n_samples), y))  # stratified k-fold on target labels
+        # build splits with the requested number of folds
+        if cv_mode == "group":
+            splits, split_note = plan_group_splits(y, groups, k_use)
+            if split_note:
+                print(f"[CROSS-FOLD] Target '{target}' | WARNING: {split_note}")
+            print(f"[CROSS-FOLD] Target '{target}' | group folds by '{group_by}': "
+                  f"{len(np.unique(groups))} groups, mice per test fold "
+                  f"{[len(np.unique(groups[ev])) for _, ev in splits]}")
+        else:
+            skf = StratifiedKFold(n_splits=k_use, shuffle=True, random_state=42)
+            splits = list(skf.split(np.zeros(n_samples), y))  # stratified k-fold on target labels
+        fold_id = cross_fold_hash(splits)
 
         # accumulate scores keyed by (classifier, metric, latent_space)
         fold_scores: Dict[Tuple[str, str, str], List[float]] = {}
@@ -578,10 +565,15 @@ def run_cross_fold_classification(
                                 else:
                                     per_class_scores.append(np.nan)
 
+                        if cv_mode == "group":  # a held-out fold can lack a class; do not report that as F1=0
+
+                            per_class_scores = [np.nan if not ((y_true == lbl).any()) else v for lbl, v in zip(label_order, per_class_scores)]
+
                         for lbl, cls_score in zip(label_order, per_class_scores):
                             CROSS_FOLD_CLASS_RECORDS.append(
                                 {
                                     "split": split_name,
+                                    "cv_mode": cv_mode,
                                     "target": target,
                                     "classifier": clf_name,
                                     "space": space_name,
@@ -637,10 +629,15 @@ def run_cross_fold_classification(
                                     else:
                                         pcs_perm.append(np.nan)
 
+                            if cv_mode == "group":  # a held-out fold can lack a class; do not report that as F1=0
+
+                                pcs_perm = [np.nan if not ((y_true == lbl).any()) else v for lbl, v in zip(label_order, pcs_perm)]
+
                             for lbl, cls_score_perm in zip(label_order, pcs_perm):
                                 CROSS_FOLD_CLASS_RECORDS.append(
                                     {
                                         "split": split_name,
+                                        "cv_mode": cv_mode,
                                         "target": target,
                                         "classifier": f"{clf_name}_label_perm",
                                         "space": space_name,
@@ -704,10 +701,15 @@ def run_cross_fold_classification(
                                 else:
                                     pcs_d.append(np.nan)
 
+                        if cv_mode == "group":  # a held-out fold can lack a class; do not report that as F1=0
+
+                            pcs_d = [np.nan if not ((y_true_dummy == lbl).any()) else v for lbl, v in zip(label_order, pcs_d)]
+
                         for lbl, cls_score_d in zip(label_order, pcs_d):
                             CROSS_FOLD_CLASS_RECORDS.append(
                                 {
                                     "split": split_name,
+                                    "cv_mode": cv_mode,
                                     "target": target,
                                     "classifier": "dummy",
                                     "space": space_name,
@@ -730,6 +732,7 @@ def run_cross_fold_classification(
             CROSS_FOLD_RECORDS.append(
                 {
                     "split": split_name,
+                    "cv_mode": cv_mode,
                     "target": target,
                     "classifier": clf_name,
                     "space": space_name,
@@ -739,6 +742,8 @@ def run_cross_fold_classification(
                     "n_folds": len(scores),
                     "n_samples": n_samples,
                     "n_classes": n_classes,
+                    "group_by": group_by if cv_mode == "group" else "",
+                    "fold_hash": fold_id,
                 }
             )
             print(
@@ -783,6 +788,7 @@ def run_cross_fold_classification(
                         CROSS_FOLD_SIGNIFICANCE.append(
                             {
                                 "split": split_name,
+                                "cv_mode": cv_mode,
                                 "target": target,
                                 "classifier": clf_name,
                                 "metric": metric_name,
@@ -953,6 +959,30 @@ def run_subcluster_split_eval(
         csv_path = os.path.join(fig_dir, f"subcluster_split_eval_{safe_ct}.csv")
         pd.DataFrame(SUBCLUSTER_RECORDS).to_csv(csv_path, index=False)
         print(f"[SUBCLUSTER] Records saved → {csv_path}")
+
+
+def write_experiment_fragment(experiment_dir, model_dir, headline_metrics, run):
+    """Write an eval_<model_basename>.json fragment for the experiment-tracking
+    leaderboard (see SpliceVI-utils/script_outputs/experiments/tally_experiments.py).
+    Best-effort: a failure here must never fail the eval job itself.
+    """
+    try:
+        os.makedirs(experiment_dir, exist_ok=True)
+        model_basename = os.path.basename(os.path.normpath(model_dir))
+        fragment = {
+            "model_dir": model_dir,
+            "model_kind": "splicevi",
+            "headline_metrics": headline_metrics,
+            "wandb_run_url": getattr(run, "url", None) if run is not None else None,
+            "wandb_run_id": getattr(run, "id", None) if run is not None else None,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+        }
+        out_path = os.path.join(experiment_dir, f"eval_{model_basename}.json")
+        with open(out_path, "w") as f:
+            json.dump(fragment, f, indent=2, default=str)
+        print(f"[EXPERIMENT] Wrote {out_path}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[EXPERIMENT] WARNING: failed to write experiment fragment: {e}")
 
 
 # ---------------------------------------------------------------------
@@ -1205,12 +1235,11 @@ def build_argparser():
             "clustering",
             "train_eval",
             "test_eval",
-            "age_r2_heatmap",
             "masked_impute",
         ],
         help=(
             "Which eval blocks to run. Choices among: "
-            "latent_visualization, clustering, train_eval, test_eval, age_r2_heatmap, "
+            "latent_visualization, clustering, train_eval, test_eval, "
             "masked_impute, cross_fold_classification, test_impute. "
             "'umap' is accepted as an alias for latent_visualization (legacy). "
             "test_impute runs the unmasked test mdata through the model and compares "
@@ -1239,7 +1268,21 @@ def build_argparser():
         "--cross_fold_k",
         type=int,
         default=5,
-        help="Number of StratifiedKFold splits for cross-fold classification.",
+        help="Number of folds for cross-fold classification (3 is steadier for --cross_fold_cv group "
+             "when the rarest class is carried by only ~4 mice).",
+    )
+    parser.add_argument(
+        "--cross_fold_cv",
+        choices=["stratified", "group"],
+        default="stratified",
+        help="stratified = cell-level StratifiedKFold (default). group = StratifiedGroupKFold holding out "
+             "whole --cross_fold_group_by groups (e.g. mice) so no group is on both sides of a fold.",
+    )
+    parser.add_argument(
+        "--cross_fold_group_by",
+        type=str,
+        default="mouse.id",
+        help="obs column defining the groups for --cross_fold_cv group.",
     )
     parser.add_argument(
         "--cross_fold_classifiers",
@@ -1331,6 +1374,16 @@ def build_argparser():
         type=int,
         default=1000,
         help="Logging frequency for wandb.watch (in training steps).",
+    )
+    parser.add_argument(
+        "--experiment_dir",
+        type=str,
+        default=None,
+        help=(
+            "If set, write an eval_<model_basename>.json fragment into this directory "
+            "with headline benchmark metrics and the W&B run link, for the "
+            "experiment-tracking leaderboard."
+        ),
     )
 
     return parser
@@ -1519,8 +1572,18 @@ def main():
         "cross_fold_targets": cross_fold_targets,
         "cross_fold_splits": cross_fold_splits,
         "cross_fold_k": args.cross_fold_k,
+        "cross_fold_cv": args.cross_fold_cv,
+        "cross_fold_group_by": args.cross_fold_group_by,
         "cross_fold_classifiers": cross_fold_classifiers,
     }
+
+    # Headline metrics accumulated for the experiment-tracking leaderboard
+    # (see SpliceVI-utils/script_outputs/experiments/tally_experiments.py).
+    # Populated best-effort as the relevant eval blocks run below; a missing
+    # key just means that block wasn't run or produced no eval entries.
+    headline_metrics = {}
+    _imputation_robustness_pearsons = []
+    _imputation_robustness_l1_means = []
 
     if args.use_wandb:
         if wandb is None:
@@ -2252,6 +2315,8 @@ def main():
             wandb=wandb if run is not None else None,
             do_dummy=args.cross_fold_dummy_classifier,
             do_label_permute=args.cross_fold_label_permute,
+            cv_mode=args.cross_fold_cv,
+            group_by=args.cross_fold_group_by,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TRAIN split disabled by --cross_fold_splits.")
@@ -2483,6 +2548,8 @@ def main():
             wandb=wandb if run is not None else None,
             do_dummy=args.cross_fold_dummy_classifier,
             do_label_permute=args.cross_fold_label_permute,
+            cv_mode=args.cross_fold_cv,
+            group_by=args.cross_fold_group_by,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TEST split disabled by --cross_fold_splits.")
@@ -2539,23 +2606,6 @@ def main():
                 wandb.log({"crossfold/significance_csv_path": sig_csv})
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] No cross-fold records collected; no CSV written.")
-
-    # Age R² CSV dump
-    if "age_r2_heatmap" in EVALS:
-        print("[EVAL/AGE] Writing age R² CSV if any records exist...")
-        if len(AGE_R2_RECORDS) > 0:
-            age_df = pd.DataFrame(AGE_R2_RECORDS)
-            csv_path = f"{args.fig_dir}/age_r2_by_tissue_celltype_train_test.csv"
-            age_df.to_csv(csv_path, index=False)
-            print(
-                f"[EVAL/AGE] Wrote age R² records to {csv_path} ({age_df.shape[0]} rows)."
-            )
-            if run is not None:
-                wandb.log({"age_r2/records_csv_path": csv_path})
-        else:
-            print("[EVAL/AGE] No age R² pairing records collected; skipping CSV.")
-    else:
-        print("[EVAL/AGE] Age R² CSV skipped by config.")
 
     # -----------------------------------------------------------------
     # Test imputation eval (perfect / upper-bound baseline)
@@ -2698,6 +2748,9 @@ def main():
                 )
             )
             rmse_ti = float(np.sqrt(np.mean((orig_all_ti - pred_all_ti) ** 2)))
+
+            headline_metrics["imputation_pearson_unmasked"] = pearson_ti
+            headline_metrics["imputation_l1_mean_unmasked"] = l1_mean_ti
 
             print(
                 f"[EVAL/TEST_IMPUTE] PSI corr — "
@@ -2996,6 +3049,9 @@ def main():
                         case_eval_data[case_name] = (eval_rows_c, eval_cols_c, orig_c, pred_c)
 
                         m = _compute_imputation_metrics(orig_c, pred_c)
+                        if case_name == "all":
+                            _imputation_robustness_pearsons.append(m["pearson"])
+                            _imputation_robustness_l1_means.append(m["l1_mean"])
                         print(
                             f"[EVAL/IMPUTE/{tag}/{case_name}] SpliceVI PSI corr — "
                             f"Pearson: {m['pearson']:.4f}, Spearman: {m['spearman']:.4f}  "
@@ -3329,6 +3385,38 @@ def main():
                 torch.cuda.empty_cache()
     else:
         print("[EVAL/IMPUTE] Masked imputation eval skipped by config.")
+
+    if _imputation_robustness_pearsons:
+        headline_metrics["imputation_pearson_robustness_mean"] = float(
+            np.mean(_imputation_robustness_pearsons)
+        )
+        headline_metrics["imputation_l1_mean_robustness_mean"] = float(
+            np.mean(_imputation_robustness_l1_means)
+        )
+
+    if SUBCLUSTER_RECORDS:
+        subcluster_df = pd.DataFrame(SUBCLUSTER_RECORDS)
+        subcluster_k8 = subcluster_df[subcluster_df["k"] == 8]
+        if not subcluster_k8.empty and "f1_weighted" in subcluster_k8.columns:
+            headline_metrics["subcluster_f1_mean_k8"] = float(
+                subcluster_k8["f1_weighted"].mean()
+            )
+
+    for rec in CROSS_FOLD_RECORDS:
+        if rec["classifier"] == "logreg" and rec["metric"] == "f1_weighted":
+            headline_metrics[f"crossfold_{rec['cv_mode']}_f1_{rec['split']}_{rec['target']}_{rec['space']}"] = float(rec["mean"])
+
+    try:
+        phi_vals = model.module.get_phi().detach().float().cpu().numpy().ravel()
+        headline_metrics["phi_median"] = float(np.median(phi_vals))
+        headline_metrics["phi_frac_lt2"] = float((phi_vals < 2.0).mean())
+        print(f"[PHI] n={phi_vals.size} median={headline_metrics['phi_median']:.3f} "
+              f"frac<2={headline_metrics['phi_frac_lt2']:.3f}")
+    except Exception as e:  # noqa: BLE001
+        print(f"[PHI] WARNING: could not summarize DM concentration: {e}")
+
+    if args.experiment_dir:
+        write_experiment_fragment(args.experiment_dir, args.model_dir, headline_metrics, run)
 
     # -----------------------------------------------------------------
     # Finish

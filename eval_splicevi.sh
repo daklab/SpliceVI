@@ -106,7 +106,6 @@ EVALS=(
   # # train_eval
   test_eval
   cross_fold_classification
-  # # # age_r2_heatmap
   # # subcluster_split_eval
   # masked_impute
   # test_impute
