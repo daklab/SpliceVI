@@ -18,6 +18,11 @@ from .partialvae import PartialEncoderEDDIFaster, LinearDecoder, group_logsumexp
 
 
 
+def _softplus_inverse(x: torch.Tensor) -> torch.Tensor:
+    """Numerically stable inverse of F.softplus for x > 0."""
+    return x + torch.log(-torch.expm1(-x))
+
+
 class LibrarySizeEncoder(torch.nn.Module):
     """Library size encoder for gene expression.
 
@@ -203,6 +208,22 @@ class SPLICEVAE(BaseModuleClass):
         ATSEs with weak/sparse reconstruction-loss gradient collapse toward this prior's
         fixed point (log_phi_j=0, i.e. phi=softplus(0)~=0.69) while ATSEs with strong
         data support resist it. Higher values shrink more aggressively; 0.0 disables it.
+        Only used when ``phi_prior="l2_log"``.
+    phi_floor : float, default 0.0
+        Minimum concentration: ``phi = phi_floor + softplus(log_phi_j)``. Additive so the
+        gradient stays smooth (a clamp would kill it below the floor). 0.0 = no floor.
+    phi_prior : {"l2_log","gamma","none"}, default "l2_log"
+        Regularizer on the concentration. ``"l2_log"`` is the original L2 pull of
+        ``log_phi_j`` toward 0 (weight ``lambda_prior``, divided by batch size).
+        ``"gamma"`` is a MAP Gamma(``phi_prior_shape``, ``phi_prior_rate``) prior on the
+        effective phi, scaled by 1/n_obs (proper MAP scaling for a per-cell-mean loss).
+        ``"none"`` disables it.
+    phi_prior_shape, phi_prior_rate : float, defaults 2.0, 0.1
+        Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).
+    phi_init : {"log100","prior"}, default "log100"
+        ``"log100"`` is the original init (raw ``log_phi_j`` ~ N(log 100, 0.5), which after
+        softplus is phi ~ 4.6). ``"prior"`` samples phi from the Gamma prior (clamped above
+        the floor) and inverts softplus.
 
     # --- PartialEncoder knobs (splicing_encoder_architecture="partial") ---
     code_dim : int, default 16
@@ -225,6 +246,13 @@ class SPLICEVAE(BaseModuleClass):
         stays at 0.5 (preventing one modality from dominating globally).
     modality_penalty : {"Jeffreys","MMD","None"}, default "Jeffreys"
         Alignment penalty between the two posteriors on paired cells.
+    variance_mixing : {"sqrt_weights","linear","squared"}, default "sqrt_weights"
+        How the two encoders' variances are combined into the joint posterior variance for
+        ``modality_weights`` in {"equal","cell","universal"}. The mean is always the
+        weighted average of means. ``"sqrt_weights"`` (MultiVI heuristic, previous
+        behavior) scales each variance by sqrt(w), which gives ~1.41x the average variance
+        under equal weights; ``"linear"`` uses sum(w * v) (no inflation); ``"squared"``
+        uses sum(w**2 * v), the variance of a weighted average of independent Gaussians.
 
     **model_kwargs
         Forwarded to underlying components.
@@ -275,6 +303,11 @@ class SPLICEVAE(BaseModuleClass):
         dm_concentration: Literal["atse", "scalar"] = "atse",
         splicing_loss_weight: float = 1.0,
         lambda_prior: float = 1e-2,
+        phi_floor: float = 0.0,
+        phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
+        phi_prior_shape: float = 2.0,
+        phi_prior_rate: float = 0.1,
+        phi_init: Literal["log100", "prior"] = "log100",
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
         code_dim: int = 16,
@@ -286,6 +319,7 @@ class SPLICEVAE(BaseModuleClass):
         # --- Modality mixing ---
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
+        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
 
         # --- Misc ---
         **model_kwargs,
@@ -333,6 +367,17 @@ class SPLICEVAE(BaseModuleClass):
         self.h_hidden_dim = h_hidden_dim
         self.dm_concentration = dm_concentration
         self.lambda_prior = lambda_prior
+        if phi_prior not in ("l2_log", "gamma", "none"):
+            raise ValueError("phi_prior must be one of ['l2_log', 'gamma', 'none']")
+        if phi_init not in ("log100", "prior"):
+            raise ValueError("phi_init must be one of ['log100', 'prior']")
+        if phi_floor < 0:
+            raise ValueError("phi_floor must be >= 0")
+        self.phi_floor = float(phi_floor)
+        self.phi_prior = phi_prior
+        self.phi_prior_shape = float(phi_prior_shape)
+        self.phi_prior_rate = float(phi_prior_rate)
+        self.phi_init = phi_init
 
         cat_list = [n_batch] + list(n_cats_per_cov) if n_cats_per_cov is not None else []
         encoder_cat_list = cat_list if encode_covariates else None
@@ -406,10 +451,10 @@ class SPLICEVAE(BaseModuleClass):
         print("Initializing Log Phi Concentration parameter (if relevant)")
         # Initialize log_phi_j with a value of 100.0
         if self.splicing_loss_type == "beta_binomial":
-            self.log_phi_j = nn.Parameter(torch.randn(n_input_junctions) * 0.5 + np.log(100.0))
+            self.log_phi_j = self.init_log_phi(n_input_junctions)
             self.log_phi_j.requires_grad_(True)
         elif self.splicing_loss_type == "dirichlet_multinomial": 
-            self.log_phi_j = nn.Parameter(torch.tensor(4.6))
+            self.log_phi_j = self.init_log_phi(None)
             #if dm, once the anndata is set we will set the per atse concentration there in multivisplice.
             self.log_phi_j.requires_grad_(True)
             #later change to per atse?
@@ -479,6 +524,9 @@ class SPLICEVAE(BaseModuleClass):
         self.n_obs = n_obs
         self.modality_weights = modality_weights
         self.modality_penalty = modality_penalty
+        if variance_mixing not in ("sqrt_weights", "linear", "squared"):
+            raise ValueError("variance_mixing must be one of ['sqrt_weights', 'linear', 'squared']")
+        self.variance_mixing = variance_mixing
         self.n_modalities = int(n_input_genes > 0) + int(n_input_junctions > 0)
         max_n_modalities = 2
         if modality_weights == "equal":
@@ -496,6 +544,41 @@ class SPLICEVAE(BaseModuleClass):
         
         # gate that controls how much of the "other" half a decoder can see (0=off, 1=on)
         self.register_buffer("cross_gate", torch.tensor(0.0))  # start closed during warmup
+
+    def init_log_phi(self, size: int | None) -> nn.Parameter:
+        """Initial raw concentration parameter. ``size=None`` gives the scalar DM parameter.
+
+        Default ("log100") reproduces the original init exactly (per-ATSE / per-junction:
+        N(log 100, 0.5); scalar: 4.6). "prior" samples phi from the Gamma prior, clamps it
+        above the floor, and inverts softplus so ``get_phi()`` starts at that sample.
+        """
+        if self.phi_init == "log100":
+            if size is None:
+                return nn.Parameter(torch.tensor(4.6))
+            return nn.Parameter(torch.randn(size) * 0.5 + np.log(100.0))
+        shape = () if size is None else (size,)
+        gamma = torch.distributions.Gamma(
+            torch.tensor(self.phi_prior_shape), torch.tensor(self.phi_prior_rate)
+        )
+        phi0 = gamma.sample(shape)
+        excess = torch.clamp(phi0 - self.phi_floor, min=1e-3)
+        return nn.Parameter(_softplus_inverse(excess))
+
+    def get_phi(self) -> torch.Tensor:
+        """Effective DM / beta-binomial concentration used by the loss and by DM-normalized PSI."""
+        return self.phi_floor + F.softplus(self.log_phi_j)
+
+    def phi_prior_loss(self, batch_size: int):
+        """Regularizer on the concentration (0.0 for non-DM/BB likelihoods or phi_prior='none')."""
+        if self.splicing_loss_type not in ("beta_binomial", "dirichlet_multinomial"):
+            return 0.0
+        if self.phi_prior == "none":
+            return 0.0
+        if self.phi_prior == "l2_log":
+            return self.lambda_prior * torch.square(self.log_phi_j).sum() / batch_size
+        phi = self.get_phi()
+        neg_log_prior = -((self.phi_prior_shape - 1.0) * torch.log(phi) - self.phi_prior_rate * phi).sum()
+        return neg_log_prior / max(self.n_obs, 1)
 
     def set_cross_gate(self, value: float):
         # value in [0,1]; keep as buffer so it's not optimized
@@ -669,7 +752,12 @@ class SPLICEVAE(BaseModuleClass):
                 weights = self.mod_weights.unsqueeze(0).expand(len(cell_idx), -1)
 
             qz_m = mix_modalities((qzm_expr, qzm_spl), (mask_expr, mask_spl), weights)
-            qz_v = mix_modalities((qzv_expr, qzv_spl), (mask_expr, mask_spl), weights, torch.sqrt)
+            var_weight_transform = {
+                "sqrt_weights": torch.sqrt,
+                "linear": None,
+                "squared": torch.square,
+            }[self.variance_mixing]
+            qz_v = mix_modalities((qzv_expr, qzv_spl), (mask_expr, mask_spl), weights, var_weight_transform)
             qz_v = torch.clamp(qz_v, min=1e-6) #please double check this variance logic. i think in multivae they treat it like std sometimes and variance other times. need to make it consistet at least in our code
 
         # print(
@@ -852,7 +940,7 @@ class SPLICEVAE(BaseModuleClass):
         px_r = torch.exp(px_r)
         return {
             "p": p_s, # mean psi 
-            "phi": F.softplus(self.log_phi_j), # φ ≈ 100, with overflow protection
+            "phi": self.get_phi(),  # softplus(log_phi_j) (+ phi_floor); NOT ~100 at init, see init_log_phi
             "px_scale": px_scale,
             "px_r": px_r,
             "px_rate": px_rate,
@@ -968,10 +1056,7 @@ class SPLICEVAE(BaseModuleClass):
         weighted_kl_local = kl_weight * kl_local_for_warmup + kl_div_paired
 
         # ───── L2 prior on log-concentrations ϕ_j (global → per-cell) ────
-        if self.splicing_loss_type == "beta_binomial" or self.splicing_loss_type == "dirichlet_multinomial": #add dirichlet multinomial atse concentration stuff
-            prior_loss = self.lambda_prior * torch.square(self.log_phi_j).sum() / x.size(0)  # divide by batch_size so strength is constant
-        else:
-            prior_loss = 0.0 #do not compute prior loss if we're not using beta_binomial distribution
+        prior_loss = self.phi_prior_loss(x.size(0))
         
 
         # ───── total negative ELBO ───────────────────────────────────────

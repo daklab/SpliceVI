@@ -293,6 +293,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
           weight stays at 0.5 to prevent either modality from dominating globally.
     modality_penalty
         Alignment penalty across modalities: ``"Jeffreys"``, ``"MMD"``, or ``"None"``.
+    variance_mixing
+        How the two encoders' variances are combined for ``modality_weights`` in
+        {"equal","cell","universal"}: ``"sqrt_weights"`` (default, MultiVI heuristic,
+        ~1.41x the average variance under equal weights), ``"linear"`` (sum(w*v)), or
+        ``"squared"`` (sum(w**2 * v), variance of a weighted average of independent
+        Gaussians).
 
     # --- Likelihoods & dispersion (expression) ---
     gene_likelihood
@@ -347,7 +353,18 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     lambda_prior
         Weight of the L2 penalty shrinking the learned log-concentration (log_phi_j)
         toward 0, active when splicing_loss_type is "beta_binomial" or
-        "dirichlet_multinomial". Default 1e-2. Set to 0.0 to disable.
+        "dirichlet_multinomial". Default 1e-2. Set to 0.0 to disable. Only used when
+        ``phi_prior="l2_log"``.
+    phi_floor
+        Minimum DM concentration (``phi = phi_floor + softplus(log_phi_j)``). Default 0.0.
+    phi_prior
+        ``"l2_log"`` (default, original), ``"gamma"`` (MAP Gamma prior on phi, scaled by
+        1/n_obs) or ``"none"``.
+    phi_prior_shape, phi_prior_rate
+        Gamma prior parameters (defaults 2.0 and 0.1: mean 20, sd ~14).
+    phi_init
+        ``"log100"`` (default, original; effective phi ~4.6 after softplus) or ``"prior"``
+        (sample phi from the Gamma prior).
 
     # --- PartialEncoder knobs (used when splicing_encoder_architecture="partial") ---
     encoder_hidden_dim
@@ -390,6 +407,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         # --- Modality mixing ---
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
+        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int | None = None,
@@ -413,6 +431,11 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         splicing_concentration: float | None = None,
         splicing_loss_weight: float = 1.0,
         lambda_prior: float = 1e-2,
+        phi_floor: float = 0.0,
+        phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
+        phi_prior_shape: float = 2.0,
+        phi_prior_rate: float = 0.1,
+        phi_init: Literal["log100", "prior"] = "log100",
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
@@ -454,6 +477,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             n_input_junctions=n_junctions,
             modality_weights=modality_weights,
             modality_penalty=modality_penalty,
+            variance_mixing=variance_mixing,
             n_batch=self.summary_stats.n_batch,
             n_obs=adata.n_obs,
             n_labels=self.summary_stats.get("n_labels", 0),
@@ -481,6 +505,11 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             dm_concentration=dm_concentration,
             splicing_loss_weight=splicing_loss_weight,
             lambda_prior=lambda_prior,
+            phi_floor=phi_floor,
+            phi_prior=phi_prior,
+            phi_prior_shape=phi_prior_shape,
+            phi_prior_rate=phi_prior_rate,
+            phi_init=phi_init,
 
             # architectures
             splicing_encoder_architecture=splicing_encoder_architecture,
@@ -508,8 +537,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"gene_like={gene_likelihood}, disp={dispersion} | "
             f"splicing_loss={splicing_loss_type}, dm_conc={dm_concentration}, "
             f"sp_conc={splicing_concentration}, sp_loss_weight={splicing_loss_weight}, "
-            f"lambda_prior={lambda_prior} | "
-            f"mix={modality_weights}, penalty={modality_penalty} | "
+            f"lambda_prior={lambda_prior}, phi_prior={phi_prior}, phi_floor={phi_floor}, phi_init={phi_init} | "
+            f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
             f"max_nobs={max_nobs}) | "
@@ -546,7 +575,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         from torch import nn
         if self.dm_concentration== "atse":
             print("Using ATSE level concentration, overwriting concentration parameter.")
-            self.module.log_phi_j = nn.Parameter(torch.randn(num_atses) * 0.5 + np.log(100.0))
+            self.module.log_phi_j = self.module.init_log_phi(num_atses)
             self.module.log_phi_j.requires_grad_(True)
 
         return torch.sparse_coo_tensor(
@@ -1154,7 +1183,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         for tensors in scdl:
             # Precompute per-junction concentration c_j
             device = next(self.module.parameters()).device
-            raw_phi = torch.nn.functional.softplus(self.module.log_phi_j)
+            raw_phi = self.module.get_phi()
 
             if self.dm_concentration == "atse":
                 j2a = self.module.junc2atse
