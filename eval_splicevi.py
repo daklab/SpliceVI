@@ -51,6 +51,7 @@ from sklearn.metrics import (
     f1_score,
     silhouette_score,
     adjusted_mutual_info_score,
+    balanced_accuracy_score,
 )
 from sklearn.preprocessing import StandardScaler
 from scipy import sparse
@@ -197,6 +198,7 @@ def apply_obs_mapping_from_csv(mdata, mapping_csv: str):
 CROSS_FOLD_RECORDS = []
 CROSS_FOLD_SIGNIFICANCE = []
 CROSS_FOLD_CLASS_RECORDS = []
+AGE_GROUP_HEADLINE = {}  # split -> headline metrics from the shared age cross-fold (score_age_global)
 
 
 def evaluate_split(
@@ -324,6 +326,193 @@ def plan_group_splits(y: np.ndarray, groups: np.ndarray, k: int, tries: int = 50
                   f"({best_counts[0]} folds missing a class in TRAIN, {best_counts[1]} in TEST)")
 
 
+# ---------------------------------------------------------------------
+# Donor-grouped age cross-fold (shared with the standalone script)
+# ---------------------------------------------------------------------
+# ONE implementation used by BOTH pipeline Step 4 (``--cross_fold_age_method standalone``, below) and
+# SpliceVI-utils/manuscript/age_analysis/crossfold_classification/run_age_crossfold_classification.py
+# (standalone; also used for the scVI baseline, which imports these functions from this file), so the two
+# always give identical folds and scores for the same latents (compare ``fold_hash``).
+# Design: 3-class age (3/18/24 mo) logistic regression, F1 weighted; ``group`` mode holds out whole mice
+# with StratifiedGroupKFold, capped at the rarest age's mouse count, retrying seeds until every age is on
+# BOTH sides of every fold and dropping the group otherwise; ``cell`` mode is the original cell-level
+# StratifiedKFold. There is no second copy: edit here and both callers change together.
+TARGET_AGES = np.array([3.0, 18.0, 24.0])
+DEFAULT_N_FOLDS = 4  # default for both cv modes; group mode is further capped at the rarest age's mouse count
+DONOR_DIAG_FOLDS = 5  # folds for the mouse-ID predictability diagnostic (independent of the age CV)
+RANDOM_STATE = 42
+
+
+def plan_folds(y: np.ndarray, mice: np.ndarray, cv_mode: str, min_mice_per_age: int = 2,
+               n_folds: int | None = None):
+    """Return (folds, reason). folds is a list of (train_idx, eval_idx) or None if the
+    group cannot support the requested structure (reason then says why).
+
+    cell:  StratifiedKFold(n_folds or 5, shuffle, seed 42) on y -- identical to the
+           original behavior (the split depends only on y, not on X).
+    group: StratifiedGroupKFold grouped by mouse (n_folds or 3). Requires every target
+           age to have >= min_mice_per_age mice; n_splits is capped at the mouse count of
+           the rarest age so every test fold can hold at least one mouse of every age.
+           Retries a few seeds until every fold has all ages on BOTH its train and test
+           side (whole-animal stratification can otherwise hand back a fold whose test
+           set is missing an age class).
+    """
+    placeholder = np.zeros((len(y), 1))
+    if cv_mode == "cell":
+        skf = StratifiedKFold(n_splits=n_folds or DEFAULT_N_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+        return list(skf.split(placeholder, y)), ""
+
+    ages_present = set(np.unique(y))
+    mice_per_age = {a: len(np.unique(mice[y == a])) for a in TARGET_AGES}
+    short = {a: n for a, n in mice_per_age.items() if n < min_mice_per_age}
+    if short:
+        return None, f"fewer than {min_mice_per_age} mice for ages {short}"
+    n_splits = min(n_folds or DEFAULT_N_FOLDS, min(mice_per_age.values()))
+    if n_splits < 2:
+        return None, "fewer than 2 mice for the rarest age"
+    for attempt in range(50):
+        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=RANDOM_STATE + attempt)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            folds = list(sgkf.split(placeholder, y, groups=mice))
+        if all(set(np.unique(y[tr])) >= ages_present and set(np.unique(y[ev])) >= ages_present
+               for tr, ev in folds):
+            return folds, ""
+    return None, f"no {n_splits}-fold structure keeps every age in every train and test side"
+
+
+def fold_hash(folds) -> str:
+    h = hashlib.sha1()
+    for _, ev in folds:
+        h.update(np.asarray(ev, dtype=np.int64).tobytes())
+        h.update(b"|")
+    return h.hexdigest()[:12]
+
+
+def crossfold_f1(Z: np.ndarray, y: np.ndarray, folds) -> list[float]:
+    """Logreg F1_weighted per precomputed fold (see plan_folds)."""
+    X = StandardScaler().fit_transform(Z)
+    scores = []
+    for tr_idx, ev_idx in folds:
+        clf = LogisticRegression(max_iter=2000)
+        clf.fit(X[tr_idx], y[tr_idx])
+        pred = clf.predict(X[ev_idx])
+        scores.append(f1_score(y[ev_idx], pred, average="weighted"))
+    return scores
+
+
+def mice_per_age_table(y: np.ndarray, mice: np.ndarray, pair: np.ndarray, groups: list[str]) -> pd.DataFrame:
+    """Unique mice and cells per age for GLOBAL and each tissue | cell_type group."""
+    rows = []
+    for group in ["GLOBAL"] + list(groups):
+        m = np.ones(len(y), dtype=bool) if group == "GLOBAL" else (pair == group)
+        for age in TARGET_AGES:
+            sel = m & (y == age)
+            rows.append({"group": group, "age": float(age),
+                         "n_mice": int(len(np.unique(mice[sel]))), "n_cells": int(sel.sum())})
+    return pd.DataFrame(rows)
+
+
+def donor_diagnostic(Z: np.ndarray, y: np.ndarray, mice: np.ndarray) -> list[dict]:
+    """Within each age, predict mouse.id from the latent (5-fold StratifiedKFold by
+    mouse, cell level). Chance for balanced accuracy is 1 / n_mice. Mice with fewer
+    than DONOR_DIAG_FOLDS cells are dropped so stratification has support."""
+    out = []
+    for age in TARGET_AGES:
+        sel = y == age
+        Za, ma = Z[sel], mice[sel]
+        counts = pd.Series(ma).value_counts()
+        keep_mice = counts[counts >= DONOR_DIAG_FOLDS].index
+        keep = np.isin(ma, keep_mice)
+        Za, ma = Za[keep], ma[keep]
+        n_mice = len(keep_mice)
+        if n_mice < 2:
+            continue
+        X = StandardScaler().fit_transform(Za)
+        skf = StratifiedKFold(n_splits=DONOR_DIAG_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+        for fold_idx, (tr, ev) in enumerate(skf.split(X, ma)):
+            clf = LogisticRegression(max_iter=2000)
+            clf.fit(X[tr], ma[tr])
+            out.append({"age": float(age), "n_mice": n_mice, "n_cells": int(len(ma)), "fold": fold_idx,
+                        "balanced_accuracy": float(balanced_accuracy_score(ma[ev], clf.predict(X[ev]))),
+                        "chance": 1.0 / n_mice})
+    return out
+
+
+def score_age_global(latents: dict, ages_full: np.ndarray, mice_full: np.ndarray, cv_mode: str = "group",
+                     n_folds: int | None = None, min_mice_per_age: int = 2, run_donor_diagnostic: bool = True) -> dict:
+    """GLOBAL (all cells at ages 3/18/24) age F1 for each latent space, plus the donor diagnostic.
+
+    latents: {space: (n_cells, dim)} aligned with ``ages_full`` / ``mice_full`` (the full obs, before
+    the age filter). Returns a dict with ``ok`` (False if the group cannot support the structure,
+    with ``reason``), ``fold_hash``, ``n_folds``, ``n_mice``, ``n_cells``, ``f1`` ({space: [per-fold]}),
+    ``mice_table`` and ``donor_rows`` ([{space, age, fold, balanced_accuracy, chance, ...}]).
+    """
+    age_mask = np.isin(ages_full.astype(float), TARGET_AGES)
+    y = ages_full.astype(float)[age_mask]
+    mice = np.asarray(mice_full).astype(str)[age_mask]
+    out = {"ok": False, "reason": "", "n_cells": int(age_mask.sum()), "f1": {}, "donor_rows": []}
+    out["mice_table"] = mice_per_age_table(y, mice, np.array([""] * len(y)), [])
+    folds, reason = plan_folds(y, mice, cv_mode, min_mice_per_age, n_folds)
+    if folds is None:
+        out["reason"] = reason
+        return out
+    out.update(ok=True, fold_hash=fold_hash(folds), n_folds=len(folds), n_mice=int(len(np.unique(mice))))
+    for space, Z_full in latents.items():
+        Z = np.asarray(Z_full)[age_mask]
+        out["f1"][space] = crossfold_f1(Z, y, folds)
+        if run_donor_diagnostic:
+            out["donor_rows"] += [{"space": space, **r} for r in donor_diagnostic(Z, y, mice)]
+    return out
+
+
+def run_age_group_cv(split_name, mdata, latent_spaces, k_folds, group_by, fig_dir,
+                     wandb=None, donor_diagnostic=True):
+    """Age cross-fold via the SAME code as the standalone run_age_crossfold_classification.py
+    (score_age_global above): donor-grouped, ages 3/18/24, 4-fold default, logistic regression
+    (no class weights, scaler fit once), fold builder that drops the group instead of falling back.
+    Same latents + same cells give identical folds and scores (compare ``fold_hash``).
+    Returns True if it ran, False if the structure is unsupported (caller may fall back).
+    """
+    spaces = [s for s in ["joint", "expression", "splicing"] if s in latent_spaces
+              and latent_spaces[s].shape[0] == mdata.n_obs]
+    ages_full = mdata.obs["age_numeric"].astype(float).to_numpy()
+    mice_full = mdata.obs[group_by].astype(str).to_numpy()
+    print(f"[CROSS-FOLD] {split_name} | age | using shared score_age_global (standalone-equivalent), "
+          f"group_by={group_by}, k={k_folds}, spaces={spaces}", flush=True)
+    res = score_age_global({s: latent_spaces[s] for s in spaces}, ages_full, mice_full, "group", k_folds,
+                           run_donor_diagnostic=donor_diagnostic)
+    mice_csv = os.path.join(fig_dir, f"cross_fold_age_mice_per_age_{split_name}.csv")
+    res["mice_table"].to_csv(mice_csv, index=False)
+    if not res["ok"]:
+        print(f"[CROSS-FOLD] {split_name} | age | SKIPPED by shared score_age_global: {res['reason']}")
+        return False
+    print(f"[CROSS-FOLD] {split_name} | age | {res['n_folds']} folds, {res['n_mice']} mice, "
+          f"{res['n_cells']} cells, fold_hash={res['fold_hash']}")
+    headline = {}
+    for space, scores in res["f1"].items():
+        mean = float(np.mean(scores)); std = float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0
+        CROSS_FOLD_RECORDS.append({
+            "split": split_name, "cv_mode": "group", "target": "age", "classifier": "logreg", "space": space,
+            "metric": "f1_weighted", "mean": mean, "std": std, "n_folds": len(scores),
+            "n_samples": res["n_cells"], "n_classes": 3, "group_by": group_by,
+            "fold_hash": res["fold_hash"], "cv_impl": "age_group_cv",
+        })
+        headline[f"age_crossfold_group_f1_{space}_global"] = mean
+        print(f"[CROSS-FOLD] {split_name} | age | logreg | {space} | f1_weighted: {mean:.4f} ± {std:.4f} (n={len(scores)})")
+        if wandb is not None:
+            wandb.log({f"crossfold/{split_name}/age/logreg/{space}/f1_weighted_mean": mean,
+                       f"crossfold/{split_name}/age/logreg/{space}/f1_weighted_std": std})
+    if res["donor_rows"]:
+        d = pd.DataFrame(res["donor_rows"])
+        d.to_csv(os.path.join(fig_dir, f"cross_fold_age_donor_diagnostic_{split_name}.csv"), index=False)
+        for space, sub in d.groupby("space"):
+            per_age = sub.groupby("age").agg(b=("balanced_accuracy", "mean"), c=("chance", "first"))
+            headline[f"donor_acc_over_chance_{space}"] = float((per_age["b"] / per_age["c"]).mean())
+    AGE_GROUP_HEADLINE[split_name] = headline
+    return True
+
+
 def run_cross_fold_classification(
     split_name: str,
     mdata,
@@ -338,6 +527,8 @@ def run_cross_fold_classification(
     do_label_permute: bool = False,
     cv_mode: str = "stratified",
     group_by: Optional[str] = None,
+    age_method: str = "generic",
+    age_donor_diagnostic: bool = True,
 ):
     """
     K-fold classification for multiple obs targets across latent spaces.
@@ -414,6 +605,17 @@ def run_cross_fold_classification(
         if target not in mdata.obs.columns:
             print(f"[CROSS-FOLD] Target '{target}' missing in obs; skipping.")
             continue
+
+        # Special case: the age target can use the exact same code as the standalone age eval.
+        if (target == "age" and age_method == "standalone" and cv_mode == "group"
+                and "age_numeric" in mdata.obs.columns and group_by in mdata.obs.columns):
+            if run_age_group_cv(split_name, mdata, latent_spaces, k_folds, group_by, fig_dir,
+                                wandb=wandb, donor_diagnostic=age_donor_diagnostic):
+                continue
+            print("[CROSS-FOLD] age | falling back to the generic cross-fold for this target.")
+        elif target == "age" and age_method == "standalone":
+            print(f"[CROSS-FOLD] age | standalone method needs cv_mode=group and obs columns 'age_numeric' "
+                  f"and '{group_by}'; using the generic cross-fold instead.")
 
         labels_series_full = mdata.obs[target].astype("string").fillna("NA")
         total_n_samples = int(labels_series_full.size)
@@ -1280,6 +1482,23 @@ def build_argparser():
              "(the original behavior).",
     )
     parser.add_argument(
+        "--cross_fold_age_method",
+        choices=["generic", "standalone"],
+        default="generic",
+        help="How the 'age' target is cross-validated when --cross_fold_cv group. generic = the generic "
+             "code path used for every target (balanced class weights, scaler inside each fold, "
+             "plan_group_splits fallback). standalone = the shared score_age_global code (also imported by the standalone script), identical "
+             "to run_age_crossfold_classification.py (ages 3/18/24 from age_numeric, no class weights, "
+             "group dropped instead of a leaky fallback), so results line up with the standalone eval.",
+    )
+    parser.add_argument(
+        "--cross_fold_age_donor_diagnostic",
+        type=lambda v: str(v).lower() in ("1", "true", "yes", "y", "t"),
+        default=True,
+        help="With --cross_fold_age_method standalone: also predict mouse.id within each age from each latent "
+             "(donor_acc_over_chance_* headline metrics). Default true.",
+    )
+    parser.add_argument(
         "--cross_fold_group_by",
         type=str,
         default="mouse.id",
@@ -1575,6 +1794,7 @@ def main():
         "cross_fold_k": args.cross_fold_k,
         "cross_fold_cv": args.cross_fold_cv,
         "cross_fold_group_by": args.cross_fold_group_by,
+        "cross_fold_age_method": args.cross_fold_age_method,
         "cross_fold_classifiers": cross_fold_classifiers,
     }
 
@@ -2318,6 +2538,8 @@ def main():
             do_label_permute=args.cross_fold_label_permute,
             cv_mode=args.cross_fold_cv,
             group_by=args.cross_fold_group_by,
+            age_method=args.cross_fold_age_method,
+            age_donor_diagnostic=args.cross_fold_age_donor_diagnostic,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TRAIN split disabled by --cross_fold_splits.")
@@ -2551,6 +2773,8 @@ def main():
             do_label_permute=args.cross_fold_label_permute,
             cv_mode=args.cross_fold_cv,
             group_by=args.cross_fold_group_by,
+            age_method=args.cross_fold_age_method,
+            age_donor_diagnostic=args.cross_fold_age_donor_diagnostic,
         )
     elif "cross_fold_classification" in EVALS:
         print("[CROSS-FOLD] TEST split disabled by --cross_fold_splits.")
@@ -3402,6 +3626,10 @@ def main():
             headline_metrics["subcluster_f1_mean_k8"] = float(
                 subcluster_k8["f1_weighted"].mean()
             )
+
+    _pick = "test" if "test" in AGE_GROUP_HEADLINE else ("train" if "train" in AGE_GROUP_HEADLINE else None)
+    if _pick:
+        headline_metrics.update(AGE_GROUP_HEADLINE[_pick])  # same key names as the standalone script's fragment
 
     for rec in CROSS_FOLD_RECORDS:
         if rec["classifier"] == "logreg" and rec["metric"] == "f1_weighted":

@@ -75,7 +75,7 @@ PHI_INIT="log100"                   # log100 (original) | prior (sample phi from
 # 4) Optional architecture knobs (SPLICEVI __init__ parameters)
 MODALITY_WEIGHTS="per_dimension_weighted_average"             # equal | cell | universal | concatenate | per_dimension_weighted_average
 MODALITY_PENALTY="Jeffreys"          # Jeffreys | MMD | None
-VARIANCE_MIXING="sqrt_weights"       # sqrt_weights | linear | squared  (NOT used when MODALITY_WEIGHTS=per_dimension_weighted_average or concatenate)
+VARIANCE_MIXING="sqrt_weights"       # sqrt_weights (original rule of the chosen weighting mode) | linear | squared (independent errors, w^2); not used with concatenate
 MASK_CELLS_WITHOUT_SPLICING=false    # true: cells with no observed junction get no splicing weight in the mix / alignment penalty
 N_LAYERS_ENCODER=2
 N_LAYERS_DECODER=2                   # not used if linear
@@ -106,6 +106,12 @@ LR_PATIENCE=30
 STEP_SIZE=650
 GRADIENT_CLIPPING=true
 GRADIENT_CLIPPING_MAX_NORM=5.0
+# Pin the cross gate open (1.0) for the whole run, including KL warmup. For non-concatenate
+# MODALITY_WEIGHTS this disables the random per-batch single-modality routing during warmup (the
+# joint posterior is the real mixed latent from step 1 -- ordinary KL warmup, no modality
+# switching); for concatenate it also disables the closed-during-warmup cross-term gating. Use to
+# test a higher SPLICING_LOSS_WEIGHT without the warmup-routing confound.
+DISABLE_CROSS_GATE=false
 
 # 5) Optional: W&B configuration
 USE_WANDB=true                       # Set to "false" to disable W&B logging
@@ -234,6 +240,7 @@ python "${SCRIPT_PATH}" \
   --step_size "${STEP_SIZE}" \
   --gradient_clipping "${GRADIENT_CLIPPING}" \
   --gradient_clipping_max_norm "${GRADIENT_CLIPPING_MAX_NORM}" \
+  --disable_cross_gate "${DISABLE_CROSS_GATE}" \
   ${WANDB_ARGS}
 
 set +x
