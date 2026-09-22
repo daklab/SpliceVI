@@ -460,7 +460,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         encoder_hidden_dim: int = 128,
         code_dim: int = 16,
         h_hidden_dim: int = 64,
-        pool_mode: Literal["mean", "sum"] = "mean",
+        pool_mode: Literal["mean", "sum", "precision"] = "mean",
+        precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -535,6 +536,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             code_dim=code_dim,
             h_hidden_dim=h_hidden_dim,
             pool_mode=pool_mode,
+            precision_weight=precision_weight,
             max_nobs=max_nobs,
 
             # extras
@@ -554,7 +556,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"lambda_prior={lambda_prior}, phi_prior={phi_prior}, phi_floor={phi_floor}, phi_init={phi_init} | "
             f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing}, mask_no_spl={mask_cells_without_splicing} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
-            f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
+            f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, precision_weight={precision_weight}, "
             f"max_nobs={max_nobs}) | "
             f"init_from_pca={initialize_embeddings_from_pca}"
         )

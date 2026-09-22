@@ -272,7 +272,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         n_cat_list: Iterable[int] | None = None,
         n_cont: int = 0,
         inject_covariates: bool = True,
-        pool_mode: Literal["mean", "sum"] = "mean",
+        pool_mode: Literal["mean", "sum", "precision"] = "mean",   # precision: weighted mean, weights passed to forward (STAGE5 s31)
         max_nobs: int = -1,
         encoder_n_layers: int = 2,    
     ):
@@ -326,6 +326,7 @@ class PartialEncoderEDDIFaster(nn.Module):
     mask: torch.Tensor,              # (B, J), 1=observed, 0=missing
     *cat_list: torch.Tensor,
     cont: torch.Tensor | None = None,
+    weights: torch.Tensor | None = None,   # (B, J) per-observation pooling weights; required for pool_mode="precision"
 ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Observed-only path:
@@ -338,6 +339,9 @@ class PartialEncoderEDDIFaster(nn.Module):
         D = self.code_dim
         device = x.device
         dtype  = x.dtype
+        if self.pool_mode == "precision" and weights is None:
+            raise ValueError("pool_mode='precision' requires `weights` (B, J), e.g. the ATSE totals")
+        wsum = None
 
         # Ensure boolean mask (no grad)
         mask_bool = mask.bool()
@@ -368,7 +372,14 @@ class PartialEncoderEDDIFaster(nn.Module):
             h_obs = self.h_layer(h_in)                            # (N_obs, D)
 
             pooled = torch.zeros(B, D, device=device, dtype=h_obs.dtype)
-            pooled.index_add_(0, b_idx, h_obs)
+            if self.pool_mode == "precision":
+                # precision-weighted sum; the divisor is the per-cell weight sum (STAGE5 section 31)
+                w_obs = weights[b_idx, j_idx].to(h_obs.dtype).unsqueeze(1)          # (N_obs, 1)
+                wsum = torch.zeros(B, 1, device=device, dtype=h_obs.dtype)
+                pooled.index_add_(0, b_idx, h_obs * w_obs)
+                wsum.index_add_(0, b_idx, w_obs)
+            else:
+                pooled.index_add_(0, b_idx, h_obs)
 
         else:
             # ---- Chunked path: same result, steadier memory ----
@@ -388,7 +399,13 @@ class PartialEncoderEDDIFaster(nn.Module):
 
                 if pooled is None:
                     pooled = torch.zeros(B, D, device=device, dtype=h_out.dtype)
-                pooled.index_add_(0, bi, h_out)
+                    wsum = torch.zeros(B, 1, device=device, dtype=h_out.dtype)
+                if self.pool_mode == "precision":
+                    w_chunk = weights[bi, jj].to(h_out.dtype).unsqueeze(1)
+                    pooled.index_add_(0, bi, h_out * w_chunk)
+                    wsum.index_add_(0, bi, w_chunk)
+                else:
+                    pooled.index_add_(0, bi, h_out)
 
 
         # Mean pooling if requested
@@ -396,6 +413,10 @@ class PartialEncoderEDDIFaster(nn.Module):
             # counts per cell (B,), keep at least 1 to avoid division by zero
             counts = torch.bincount(b_idx, minlength=B).to(pooled.dtype).view(B, 1).clamp_min_(1)
             pooled = pooled / counts
+        elif self.pool_mode == "precision":
+            # weights are >= 1 wherever a junction is observed, so a cell with any observation has
+            # wsum >= 1; a cell with none keeps pooled = 0 (as in the mean path)
+            pooled = pooled / wsum.clamp_min(1.0)
 
         # Final per-cell projection → (mu, logvar)
         mu_logvar = self.encoder_mlp(pooled, *cat_list, cont=cont)  # (B, 2Z)

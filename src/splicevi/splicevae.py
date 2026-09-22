@@ -230,7 +230,12 @@ class SPLICEVAE(BaseModuleClass):
         Hidden width of the per junction h subnetwork that combines PSI and feature embedding.
     encoder_hidden_dim : int, default 128
         Hidden width of the post pooling MLP that maps the pooled code to (mu, log var) of z.
-    pool_mode : {"mean","sum"}, default "mean"
+    pool_mode : {"mean","sum","precision"}, default "mean"
+        "precision" (STAGE5 section 31): the partial encoder's per-junction vectors are averaged with
+        weights from the ATSE-count layer (see ``precision_weight``) instead of an unweighted mean.
+    precision_weight : {"atse_total","sqrt_atse_total"}, default "atse_total"
+        Weight used when ``pool_mode="precision"``: the ATSE total at that junction (inverse variance
+        of a proportion) or its square root (variance-stabilised, bounded tail). Both clamped >= 1.
         Aggregation of per junction codes within each cell.
     max_nobs : int, default -1
         Optional cap on the number of observed entries processed in each scatter chunk.
@@ -320,7 +325,8 @@ class SPLICEVAE(BaseModuleClass):
         code_dim: int = 16,
         h_hidden_dim: int = 64,
         encoder_hidden_dim: int = 128,
-        pool_mode: Literal["mean", "sum"] = "mean",
+        pool_mode: Literal["mean", "sum", "precision"] = "mean",
+        precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -336,6 +342,8 @@ class SPLICEVAE(BaseModuleClass):
         super().__init__()
         self.n_input_genes = n_input_genes
         self.n_input_junctions = n_input_junctions
+        self.pool_mode = pool_mode
+        self.precision_weight = precision_weight
 
         if n_hidden is None:
             self.n_hidden = np.min([128, int(np.sqrt(n_input_junctions))]) if n_input_junctions > 0 else int(np.sqrt(n_input_genes))
@@ -628,10 +636,12 @@ class SPLICEVAE(BaseModuleClass):
             "label": label,
             "cell_idx": cell_idx,
             "size_factor": size_factor,
+            # STAGE5 section 31: ATSE totals reach the encoder only as pooling weights (pool_mode="precision")
+            "atse_counts": tensors.get("atse_counts_key", None),
         }
 
     @auto_move_data
-    def inference(self, x, mask, batch_index, cont_covs, cat_covs, label, cell_idx, size_factor, n_samples=1) -> dict[str, torch.Tensor]:
+    def inference(self, x, mask, batch_index, cont_covs, cat_covs, label, cell_idx, size_factor, n_samples=1, atse_counts=None) -> dict[str, torch.Tensor]:
         """Run the inference network.
 
         Splits input x into gene expression and splicing parts, encodes each branch, and mixes their latent representations.
@@ -673,8 +683,15 @@ class SPLICEVAE(BaseModuleClass):
             # PartialEncoder gives (mu, raw_logvar)
             #print(f"x_spl min/max={x_spl.min().item():.3e}/{x_spl.max().item():.3e}, mask sum={mask.sum().item()}")
 
+            pool_weights = None
+            if self.pool_mode == "precision":
+                if atse_counts is None:
+                    raise ValueError("pool_mode='precision' needs the ATSE-count layer in the minibatch (atse_counts_key)")
+                pool_weights = atse_counts.to(x_spl.dtype).clamp_min(1.0)
+                if self.precision_weight == "sqrt_atse_total":
+                    pool_weights = torch.sqrt(pool_weights)
             mu, raw_logvar = self.z_encoder_splicing(
-                x_spl, mask, batch_index, *categorical_input, cont=cont_covs
+                x_spl, mask, batch_index, *categorical_input, cont=cont_covs, weights=pool_weights
             )
 
             # print(
