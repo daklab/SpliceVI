@@ -106,6 +106,12 @@ LR_PATIENCE=30
 STEP_SIZE=650
 GRADIENT_CLIPPING=true
 GRADIENT_CLIPPING_MAX_NORM=5.0
+# Pin the cross gate open (1.0) for the whole run, including KL warmup. For non-concatenate
+# MODALITY_WEIGHTS this disables the random per-batch single-modality routing during warmup (the
+# joint posterior is the real mixed latent from step 1 -- ordinary KL warmup, no modality
+# switching); for concatenate it also disables the closed-during-warmup cross-term gating. Use to
+# test a higher SPLICING_LOSS_WEIGHT without the warmup-routing confound.
+DISABLE_CROSS_GATE=false
 
 # 5) Optional: W&B configuration
 USE_WANDB=true                       # Set to "false" to disable W&B logging
@@ -234,6 +240,7 @@ python "${SCRIPT_PATH}" \
   --step_size "${STEP_SIZE}" \
   --gradient_clipping "${GRADIENT_CLIPPING}" \
   --gradient_clipping_max_norm "${GRADIENT_CLIPPING_MAX_NORM}" \
+  --disable_cross_gate "${DISABLE_CROSS_GATE}" \
   ${WANDB_ARGS}
 
 set +x

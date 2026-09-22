@@ -84,10 +84,19 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
         cross_gate_mode: str = "hard",
+        disable_cross_gate: bool = False,
         **kwargs,
     ):
         super().__init__(module=module, **kwargs)
         self.cross_gate_mode = cross_gate_mode  # "hard" or "soft"
+        # If True, the cross gate is pinned open (1.0) for the entire run, including during KL
+        # warmup. For non-concatenate modality_weights, this disables the random per-batch
+        # single-modality routing in SPLICEVAE.inference() (warmup_only_splicing), so the joint
+        # posterior is the real mixed latent from step 1 -- ordinary KL warmup, no modality
+        # switching. For modality_weights="concatenate" it also disables the closed-during-warmup
+        # cross-term gating. Lets you test a higher splicing_loss_weight without the warmup-routing
+        # confound (see splicevi-phi-concentration-findings / gradient-imbalance discussion).
+        self.disable_cross_gate = disable_cross_gate
         # new scheduling params
         self.lr_scheduler_type = lr_scheduler_type
         self.step_size = step_size
@@ -132,6 +141,8 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
         )
 
     def _compute_gate(self) -> float:
+        if self.disable_cross_gate:
+            return 1.0  # pinned open: no warmup routing / cross-term gating at all
         # KL warmup drives self.kl_weight from 0→1
         if self.cross_gate_mode == "soft":
             return float(self.kl_weight)                 # gradually open
@@ -655,6 +666,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         step_size: int = 10,
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
+        disable_cross_gate: bool = False,
         datasplitter_kwargs: dict | None = None,
         plan_kwargs: dict | None = None,
         **kwargs,
@@ -705,6 +717,13 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             Whether or not (true or false) to use gradient norm clipping
         gradient_clipping_max_norm
             Max norm of the gradients to be used in gradient clipping
+        disable_cross_gate
+            If True, pin the cross gate open (1.0) for the whole run, including during KL warmup.
+            For non-concatenate ``modality_weights`` this disables the random per-batch
+            single-modality routing (SPLICEVAE.inference()'s warmup_only_splicing), so the joint
+            posterior is the real mixed latent from the start -- ordinary KL warmup, no modality
+            switching. For ``modality_weights="concatenate"`` it also disables the
+            closed-during-warmup cross-term gating. Default False = original behavior.
         datasplitter_kwargs
             Additional kwargs for the data splitter.
         plan_kwargs
@@ -729,7 +748,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             "optimizer": "AdamW",
             "scale_adversarial_loss": 1,
             "gradient_clipping": gradient_clipping,
-            "gradient_clipping_max_norm": gradient_clipping_max_norm,    
+            "gradient_clipping_max_norm": gradient_clipping_max_norm,
+            "disable_cross_gate": disable_cross_gate,    
         }
         if plan_kwargs is not None:
             plan_kwargs.update(update_dict)
