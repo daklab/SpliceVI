@@ -189,6 +189,7 @@ CROSS_FOLD_TARGETS=(
 CROSS_FOLD_K=4                 # folds
 CROSS_FOLD_CV="group"          # group (whole mice held out, default) | stratified (cell-level)
 CROSS_FOLD_GROUP_BY="mouse.id" # obs column defining the groups when CROSS_FOLD_CV="group"
+CROSS_FOLD_AGE_METHOD="standalone"  # age target in group mode: standalone (shared code, matches run_age_crossfold_classification.py) | generic
 CROSS_FOLD_CLASSIFIERS=(
   "logreg"
   # "rf"
@@ -350,6 +351,7 @@ python "${SCRIPT_PATH}" \
   --cross_fold_k "${CROSS_FOLD_K}" \
   --cross_fold_cv "${CROSS_FOLD_CV}" \
   --cross_fold_group_by "${CROSS_FOLD_GROUP_BY}" \
+  --cross_fold_age_method "${CROSS_FOLD_AGE_METHOD}" \
   --cross_fold_classifiers ${CROSS_FOLD_CLASSIFIERS_JOINED} \
   --cross_fold_metrics ${CROSS_FOLD_METRICS_JOINED} \
   --evals ${EVALS_JOINED} \

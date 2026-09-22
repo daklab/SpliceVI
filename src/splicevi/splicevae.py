@@ -252,11 +252,15 @@ class SPLICEVAE(BaseModuleClass):
         (uninformed) splicing posterior averaged into the joint latent.
     variance_mixing : {"sqrt_weights","linear","squared"}, default "sqrt_weights"
         How the two encoders' variances are combined into the joint posterior variance for
-        ``modality_weights`` in {"equal","cell","universal"}. The mean is always the
-        weighted average of means. ``"sqrt_weights"`` (MultiVI heuristic, previous
-        behavior) scales each variance by sqrt(w), which gives ~1.41x the average variance
-        under equal weights; ``"linear"`` uses sum(w * v) (no inflation); ``"squared"``
-        uses sum(w**2 * v), the variance of a weighted average of independent Gaussians.
+        ``modality_weights`` in {"equal","cell","universal","per_dimension_weighted_average"}
+        (ignored for "concatenate"). The mean is always the weighted average of means.
+        ``"sqrt_weights"`` (default, previous behavior): for equal/cell/universal the MultiVI
+        heuristic sum(sqrt(w) * v) (~1.41x the average variance under equal weights); for
+        per_dimension_weighted_average this value keeps that mode's original rule
+        (sum(w * std))**2, the variance of an average of perfectly correlated errors.
+        ``"linear"`` uses sum(w * v) (no inflation). ``"squared"`` uses sum(w**2 * v), the
+        variance of a weighted average of independent Gaussians (per-dimension w in the
+        per-dimension mode).
 
     **model_kwargs
         Forwarded to underlying components.
@@ -756,8 +760,15 @@ class SPLICEVAE(BaseModuleClass):
                 )
             # w_spl/w_expr are (D,); broadcast over batch
             qz_m = w_expr * qzm_expr + w_spl * qzm_spl
-            # for variance: weighted combination of stds, then square
-            qz_v = (w_expr * qzv_expr.sqrt() + w_spl * qzv_spl.sqrt()) ** 2
+            # variance (see ``variance_mixing``): "squared" = independent errors, sum(w^2 * v);
+            # "linear" = sum(w * v); "sqrt_weights" (default) keeps this mode's original rule,
+            # (sum(w * std))^2, i.e. perfectly correlated errors. All use per-dimension w.
+            if self.variance_mixing == "squared":
+                qz_v = w_expr ** 2 * qzv_expr + w_spl ** 2 * qzv_spl
+            elif self.variance_mixing == "linear":
+                qz_v = w_expr * qzv_expr + w_spl * qzv_spl
+            else:
+                qz_v = (w_expr * qzv_expr.sqrt() + w_spl * qzv_spl.sqrt()) ** 2
             qz_v = torch.clamp(qz_v, min=1e-6)
         else:
             if self.modality_weights == "cell":

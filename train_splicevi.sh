@@ -75,7 +75,7 @@ PHI_INIT="log100"                   # log100 (original) | prior (sample phi from
 # 4) Optional architecture knobs (SPLICEVI __init__ parameters)
 MODALITY_WEIGHTS="per_dimension_weighted_average"             # equal | cell | universal | concatenate | per_dimension_weighted_average
 MODALITY_PENALTY="Jeffreys"          # Jeffreys | MMD | None
-VARIANCE_MIXING="sqrt_weights"       # sqrt_weights | linear | squared  (NOT used when MODALITY_WEIGHTS=per_dimension_weighted_average or concatenate)
+VARIANCE_MIXING="sqrt_weights"       # sqrt_weights (original rule of the chosen weighting mode) | linear | squared (independent errors, w^2); not used with concatenate
 MASK_CELLS_WITHOUT_SPLICING=false    # true: cells with no observed junction get no splicing weight in the mix / alignment penalty
 N_LAYERS_ENCODER=2
 N_LAYERS_DECODER=2                   # not used if linear

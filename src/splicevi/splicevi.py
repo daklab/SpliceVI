@@ -298,11 +298,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         excluded from the alignment penalty (default False = original behavior, where every cell
         always counts as having splicing).
     variance_mixing
-        How the two encoders' variances are combined for ``modality_weights`` in
-        {"equal","cell","universal"}: ``"sqrt_weights"`` (default, MultiVI heuristic,
-        ~1.41x the average variance under equal weights), ``"linear"`` (sum(w*v)), or
-        ``"squared"`` (sum(w**2 * v), variance of a weighted average of independent
-        Gaussians).
+        How the two encoders' variances are combined, for every ``modality_weights`` except
+        ``"concatenate"``: ``"sqrt_weights"`` (default; for equal/cell/universal the MultiVI
+        heuristic, ~1.41x the average variance under equal weights; for
+        per_dimension_weighted_average it keeps that mode's original rule (sum(w*std))**2),
+        ``"linear"`` (sum(w*v)), or ``"squared"`` (sum(w**2 * v), variance of a weighted average
+        of independent Gaussians).
 
     # --- Likelihoods & dispersion (expression) ---
     gene_likelihood
