@@ -327,6 +327,7 @@ class SPLICEVAE(BaseModuleClass):
         encoder_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum", "precision"] = "mean",
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
+        stop_gradient_spl_to_expr: bool = False,   # STAGE5 s46: detach the splicing posterior on the expression-decoder path
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -344,6 +345,7 @@ class SPLICEVAE(BaseModuleClass):
         self.n_input_junctions = n_input_junctions
         self.pool_mode = pool_mode
         self.precision_weight = precision_weight
+        self.stop_gradient_spl_to_expr = stop_gradient_spl_to_expr
 
         if n_hidden is None:
             self.n_hidden = np.min([128, int(np.sqrt(n_input_junctions))]) if n_input_junctions > 0 else int(np.sqrt(n_input_genes))
@@ -743,64 +745,76 @@ class SPLICEVAE(BaseModuleClass):
             self.modality_weights != "concatenate"
             and float(self.cross_gate.item()) < 1.0
         )
-        if warmup_only_splicing:
-            # During warmup, route only the splicing posterior into the shared latent.
-            # This makes both decoders use splicing information in the generative step.
+        coin = random.choice(["splicing", "expression"]) if warmup_only_splicing else None
 
-            result = random.choice(["splicing", "expression"])
-            if result == "splicing":
-                qz_m = qzm_spl
-                qz_v = qzv_spl
-            else:
-                qz_m = qzm_expr
-                qz_v = qzv_expr
+        def _mix(qzm_expr, qzv_expr, qzm_spl, qzv_spl):
+            """Joint posterior (qz_m, qz_v) from the two per-modality posteriors; the original
+            mixing code, unchanged, wrapped so it can also be evaluated with the splicing
+            posterior detached (STAGE5 section 46)."""
+            if warmup_only_splicing:
+                # During warmup, route only the splicing posterior into the shared latent.
+                # This makes both decoders use splicing information in the generative step.
+
+                result = coin   # drawn once, outside, so both mixes see the same branch
+                if result == "splicing":
+                    qz_m = qzm_spl
+                    qz_v = qzv_spl
+                else:
+                    qz_m = qzm_expr
+                    qz_v = qzv_expr
             
-        elif self.modality_weights == "concatenate":
-            # just glue the two posterior stats end-to-end
-            qz_m = torch.cat((qzm_expr, qzm_spl), dim=1)
-            qz_v = torch.cat((qzv_expr, qzv_spl), dim=1)
-        elif self.modality_weights == "per_dimension_weighted_average":
-            # Per-dimension splicing contribution weights with mean exactly 0.5.
-            # sigmoid maps raw params to (0,1), then shift so mean is exactly 0.5:
-            # mean(s - mean(s) + 0.5) = 0.5 always, regardless of gradient updates.
-            # Clamp keeps values in (0,1); the clamp only activates if any sigmoid
-            # value deviates from the mean by more than 0.5, which is rare in practice.
-            s = torch.sigmoid(self.dim_weights_raw)
-            w_spl = torch.clamp(s - s.mean() + 0.5, min=1e-4, max=1 - 1e-4)
-            w_expr = 1.0 - w_spl  # (D,)
-            if self.training and torch.rand(1).item() < 0.01:
-                w_np = w_spl.detach().cpu().numpy()
-                print(
-                    f"[per_dim_weights] splicing weights (mean={w_np.mean():.3f}, "
-                    f"min={w_np.min():.3f}, max={w_np.max():.3f}): "
-                    + ", ".join(f"d{i}={v:.3f}" for i, v in enumerate(w_np))
-                )
-            # w_spl/w_expr are (D,); broadcast over batch
-            qz_m = w_expr * qzm_expr + w_spl * qzm_spl
-            # variance (see ``variance_mixing``): "squared" = independent errors, sum(w^2 * v);
-            # "linear" = sum(w * v); "sqrt_weights" (default) keeps this mode's original rule,
-            # (sum(w * std))^2, i.e. perfectly correlated errors. All use per-dimension w.
-            if self.variance_mixing == "squared":
-                qz_v = w_expr ** 2 * qzv_expr + w_spl ** 2 * qzv_spl
-            elif self.variance_mixing == "linear":
-                qz_v = w_expr * qzv_expr + w_spl * qzv_spl
+            elif self.modality_weights == "concatenate":
+                # just glue the two posterior stats end-to-end
+                qz_m = torch.cat((qzm_expr, qzm_spl), dim=1)
+                qz_v = torch.cat((qzv_expr, qzv_spl), dim=1)
+            elif self.modality_weights == "per_dimension_weighted_average":
+                # Per-dimension splicing contribution weights with mean exactly 0.5.
+                # sigmoid maps raw params to (0,1), then shift so mean is exactly 0.5:
+                # mean(s - mean(s) + 0.5) = 0.5 always, regardless of gradient updates.
+                # Clamp keeps values in (0,1); the clamp only activates if any sigmoid
+                # value deviates from the mean by more than 0.5, which is rare in practice.
+                s = torch.sigmoid(self.dim_weights_raw)
+                w_spl = torch.clamp(s - s.mean() + 0.5, min=1e-4, max=1 - 1e-4)
+                w_expr = 1.0 - w_spl  # (D,)
+                if self.training and torch.rand(1).item() < 0.01:
+                    w_np = w_spl.detach().cpu().numpy()
+                    print(
+                        f"[per_dim_weights] splicing weights (mean={w_np.mean():.3f}, "
+                        f"min={w_np.min():.3f}, max={w_np.max():.3f}): "
+                        + ", ".join(f"d{i}={v:.3f}" for i, v in enumerate(w_np))
+                    )
+                # w_spl/w_expr are (D,); broadcast over batch
+                qz_m = w_expr * qzm_expr + w_spl * qzm_spl
+                # variance (see ``variance_mixing``): "squared" = independent errors, sum(w^2 * v);
+                # "linear" = sum(w * v); "sqrt_weights" (default) keeps this mode's original rule,
+                # (sum(w * std))^2, i.e. perfectly correlated errors. All use per-dimension w.
+                if self.variance_mixing == "squared":
+                    qz_v = w_expr ** 2 * qzv_expr + w_spl ** 2 * qzv_spl
+                elif self.variance_mixing == "linear":
+                    qz_v = w_expr * qzv_expr + w_spl * qzv_spl
+                else:
+                    qz_v = (w_expr * qzv_expr.sqrt() + w_spl * qzv_spl.sqrt()) ** 2
+                qz_v = torch.clamp(qz_v, min=1e-6)
             else:
-                qz_v = (w_expr * qzv_expr.sqrt() + w_spl * qzv_spl.sqrt()) ** 2
-            qz_v = torch.clamp(qz_v, min=1e-6)
-        else:
-            if self.modality_weights == "cell":
-                weights = self.mod_weights[cell_idx, :]
-            else:
-                weights = self.mod_weights.unsqueeze(0).expand(len(cell_idx), -1)
+                if self.modality_weights == "cell":
+                    weights = self.mod_weights[cell_idx, :]
+                else:
+                    weights = self.mod_weights.unsqueeze(0).expand(len(cell_idx), -1)
 
-            qz_m = mix_modalities((qzm_expr, qzm_spl), (mask_expr, mask_spl), weights)
-            var_weight_transform = {
-                "sqrt_weights": torch.sqrt,
-                "linear": None,
-                "squared": torch.square,
-            }[self.variance_mixing]
-            qz_v = mix_modalities((qzv_expr, qzv_spl), (mask_expr, mask_spl), weights, var_weight_transform)
-            qz_v = torch.clamp(qz_v, min=1e-6) #please double check this variance logic. i think in multivae they treat it like std sometimes and variance other times. need to make it consistet at least in our code
+                qz_m = mix_modalities((qzm_expr, qzm_spl), (mask_expr, mask_spl), weights)
+                var_weight_transform = {
+                    "sqrt_weights": torch.sqrt,
+                    "linear": None,
+                    "squared": torch.square,
+                }[self.variance_mixing]
+                qz_v = mix_modalities((qzv_expr, qzv_spl), (mask_expr, mask_spl), weights, var_weight_transform)
+                qz_v = torch.clamp(qz_v, min=1e-6) #please double check this variance logic. i think in multivae they treat it like std sometimes and variance other times. need to make it consistet at least in our code
+            return qz_m, qz_v
+
+        qz_m, qz_v = _mix(qzm_expr, qzv_expr, qzm_spl, qzv_spl)
+        qz_m_sg = qz_v_sg = None
+        if self.stop_gradient_spl_to_expr:
+            qz_m_sg, qz_v_sg = _mix(qzm_expr, qzv_expr, qzm_spl.detach(), qzv_spl.detach())
 
         # print(
         #     "After mix:",
@@ -821,11 +835,18 @@ class SPLICEVAE(BaseModuleClass):
 
 
         # sample from the mixed representation
-        untran_z = Normal(qz_m, qz_v.sqrt()).rsample()
+        z_expr_path = None
+        if self.stop_gradient_spl_to_expr:
+            eps = torch.randn_like(qz_m)                       # one reparameterisation draw for both paths
+            untran_z = qz_m + qz_v.sqrt() * eps
+            z_expr_path = self.z_encoder_expression.z_transformation(qz_m_sg + qz_v_sg.sqrt() * eps)
+        else:
+            untran_z = Normal(qz_m, qz_v.sqrt()).rsample()
         z = self.z_encoder_expression.z_transformation(untran_z)
 
         return {
             "z": z,
+            "z_expr_path": z_expr_path,   # None unless stop_gradient_spl_to_expr (STAGE5 s46)
             "qz_m": qz_m,
             "qz_v": qz_v,
             "z_expr": z_expr,
@@ -858,6 +879,7 @@ class SPLICEVAE(BaseModuleClass):
 
         input_dict = {
             "z": z,
+            "z_expr_path": inference_outputs.get("z_expr_path", None),
             "qz_m": qz_m,
             "batch_index": batch_index,
             "cont_covs": cont_covs,
@@ -868,7 +890,7 @@ class SPLICEVAE(BaseModuleClass):
         return input_dict
 
     @auto_move_data
-    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None):
+    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None, z_expr_path=None):
         """Run the generative model to decode gene expression and splicing.
 
         Decodes the latent representation into parameters for gene expression reconstruction
@@ -887,6 +909,9 @@ class SPLICEVAE(BaseModuleClass):
             categorical_input = ()
 
         latent = z if not use_z_mean else qz_m
+        # STAGE5 s46: with stop_gradient_spl_to_expr the expression decoder reads the same sample with the
+        # splicing posterior detached; the splicing decoder always reads the full latent.
+        latent_expr = z_expr_path if (z_expr_path is not None and not use_z_mean) else latent
 
         # split halves only if you’re concatenating
         def _attach_cont(rep):
@@ -900,21 +925,22 @@ class SPLICEVAE(BaseModuleClass):
         if self.modality_weights == "concatenate":
             d = self.encoder_latent_dim
             z_e, z_s = latent.split(d, dim=-1)
+            z_e_x, z_s_x = latent_expr.split(d, dim=-1)   # s46: expression-decoder view (detached splicing half)
 
             gate = self.cross_gate  # 0 during warmup, 1 after
             # block cross-gradients *and* scale by gate
             e_to_s = (z_e * gate) # expression half going into splicing decoder
-            s_to_e = (z_s * gate)  # splicing   half going into expression decoder
+            s_to_e = (z_s_x * gate)  # splicing   half going into expression decoder
 
             # print(f"generative, e_to_s:{e_to_s}")
             # print(f"generative, s_to_e:{s_to_e}")
             # print(f"generative, gate:{gate}")
 
-            dec_in_expr = torch.cat([z_e, s_to_e], dim=-1)
+            dec_in_expr = torch.cat([z_e_x, s_to_e], dim=-1)
             dec_in_spl  = torch.cat([e_to_s, z_s], dim=-1)
         else:
             # not concatenating → same latent for both
-            dec_in_expr = latent
+            dec_in_expr = latent_expr
             dec_in_spl  = latent
 
         decoder_input_expr = _attach_cont(dec_in_expr)

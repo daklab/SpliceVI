@@ -462,6 +462,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         h_hidden_dim: int = 64,
         pool_mode: Literal["mean", "sum", "precision"] = "mean",
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
+        stop_gradient_spl_to_expr: bool = False,
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -537,6 +538,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             h_hidden_dim=h_hidden_dim,
             pool_mode=pool_mode,
             precision_weight=precision_weight,
+            stop_gradient_spl_to_expr=stop_gradient_spl_to_expr,
             max_nobs=max_nobs,
 
             # extras
