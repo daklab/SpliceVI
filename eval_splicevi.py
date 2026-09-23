@@ -513,6 +513,118 @@ def run_age_group_cv(split_name, mdata, latent_spaces, k_folds, group_by, fig_di
     return True
 
 
+# ---------------------------------------------------------------------
+# Modality contribution to the joint latent (splicing vs expression)
+# ---------------------------------------------------------------------
+def run_modality_contribution(split_name, mdata, latent_spaces, model, fig_dir, group_col="broad_cell_type"):
+    """How much each modality's own encoder actually MOVES the joint latent z per cell, as opposed
+    to how much information it carries (a different question -- modality collapse / per-modality-KL
+    is not measured here). For modality_weights in {"equal","cell","universal"} the joint posterior
+    mean is a per-cell convex combination qz_m = w_expr*qzm_expr + w_spl*qzm_spl, with a SCALAR
+    weight per cell, same across all latent dims (mix_modalities() in splicevae.py). Nothing
+    regularizes qzm_expr/qzm_spl individually toward the prior (only the already-mixed qz_m gets a
+    KL term, see the loss()), so even at a nominal 50/50 "equal" weighting the two encoders' raw
+    scales can differ a lot, and the *effective* influence of splicing on z can be far smaller than
+    the nominal weight suggests, for reasons that have nothing to do with modality collapse.
+
+    w_expr is recovered PER CELL by least squares (not assumed 0.5/0.5) from the already-computed
+    latent_spaces dict (qzm_expr = latent_spaces["expression"], qzm_spl = latent_spaces["splicing"],
+    qz_m = latent_spaces["joint"]) -- no extra forward pass. Per cell, A = w_expr*qzm_expr and
+    B = w_spl*qzm_spl, so qz_m = A + B exactly. Reports, GLOBAL and per --modality_contrib_group_col:
+      - norm ratio: median/mean ||B_i|| / ||A_i|| per cell (direct "scale" reading).
+      - variance share: TotalVar(A)/TotalVar(qz_m), TotalVar(B)/TotalVar(qz_m) (TotalVar = trace of
+        the ACROSS-CELL covariance matrix, i.e. how much each contribution spreads the dataset's
+        cells apart in the joint space -- NOT qzv, the encoder's own per-cell posterior variance),
+        plus the interaction/redundancy remainder 2*Cov(A,B)/TotalVar(qz_m).
+    modality_weights="concatenate" has no such additive mix (disjoint dims); reports raw per-block
+    scale only in that case. Returns headline metrics (empty dict if the block couldn't run) and
+    writes modality_contribution_<split_name>.csv to fig_dir.
+    """
+    eps = 1e-12
+    if not all(k in latent_spaces for k in ("joint", "expression", "splicing")):
+        print(f"[MODALITY_CONTRIB] {split_name}: missing one of joint/expression/splicing latents; skipping.")
+        return {}
+    qz_joint, qzm_expr, qzm_spl = latent_spaces["joint"], latent_spaces["expression"], latent_spaces["splicing"]
+    modality_weights = getattr(getattr(model, "module", None), "modality_weights", "unknown")
+
+    def total_var(X):
+        return float(np.asarray(X).var(axis=0, ddof=1).sum())
+
+    def total_cov(X, Y):
+        Xc, Yc = X - X.mean(axis=0, keepdims=True), Y - Y.mean(axis=0, keepdims=True)
+        return float((Xc * Yc).sum(axis=0).sum() / (X.shape[0] - 1))
+
+    rows, headline = [], {}
+    if modality_weights == "concatenate":
+        print(f"[MODALITY_CONTRIB] {split_name}: concatenate mode -- joint z is a literal "
+              f"concatenation, not an additive mix; reporting raw per-block scale only.")
+        rows.append({
+            "group": "GLOBAL", "n_cells": int(mdata.n_obs), "mode": "concatenate",
+            "mean_norm_expression_block": float(np.linalg.norm(qzm_expr, axis=1).mean()),
+            "mean_norm_splicing_block": float(np.linalg.norm(qzm_spl, axis=1).mean()),
+            "total_var_expression_block": total_var(qzm_expr),
+            "total_var_splicing_block": total_var(qzm_spl),
+        })
+    else:
+        diff = qzm_expr - qzm_spl
+        denom = (diff * diff).sum(axis=1)
+        num = ((qz_joint - qzm_spl) * diff).sum(axis=1)
+        w_expr = np.divide(num, denom, out=np.full_like(num, 0.5), where=denom > eps)
+        w_expr = np.clip(w_expr, -0.5, 1.5)  # allow modest numerical overshoot, catch real anomalies
+        recon_err = float(np.abs(w_expr[:, None] * qzm_expr + (1 - w_expr[:, None]) * qzm_spl - qz_joint).mean())
+        print(f"[MODALITY_CONTRIB] {split_name} | modality_weights={modality_weights!r} | recovered "
+              f"w_expr median={np.median(w_expr):.4f} mean={np.mean(w_expr):.4f} | mix reconstruction "
+              f"error={recon_err:.2e} (should be ~0)")
+        if recon_err > 1e-3:
+            print("[MODALITY_CONTRIB] WARNING: reconstruction error is large -- the additive-mix "
+                  "assumption may not hold here (e.g. per_dimension_weighted_average has a "
+                  "per-dimension, not per-cell, weight); numbers below are unreliable.")
+
+        A = w_expr[:, None] * qzm_expr
+        B = (1 - w_expr[:, None]) * qzm_spl
+
+        def summarize(Zj, Ai, Bi, wi, label, n):
+            norm_A, norm_B = np.linalg.norm(Ai, axis=1), np.linalg.norm(Bi, axis=1)
+            ratio = norm_B / (norm_A + eps)
+            var_A, var_B, var_M = total_var(Ai), total_var(Bi), total_var(Zj)
+            return {
+                "group": label, "n_cells": int(n),
+                "median_norm_ratio_spl_over_expr": float(np.median(ratio)),
+                "mean_norm_ratio_spl_over_expr": float(np.mean(ratio)),
+                "var_share_expression": var_A / var_M if var_M > eps else float("nan"),
+                "var_share_splicing": var_B / var_M if var_M > eps else float("nan"),
+                "var_share_interaction": (2 * total_cov(Ai, Bi)) / var_M if var_M > eps else float("nan"),
+                "mean_w_expr_recovered": float(np.mean(wi)),
+            }
+
+        rows.append(summarize(qz_joint, A, B, w_expr, "GLOBAL", mdata.n_obs))
+        if group_col and group_col in mdata.obs.columns:
+            labels = mdata.obs[group_col].astype(str).to_numpy()
+            for g in sorted(set(labels)):
+                sel = labels == g
+                if sel.sum() < 20:
+                    continue
+                rows.append(summarize(qz_joint[sel], A[sel], B[sel], w_expr[sel], g, sel.sum()))
+
+        g = rows[0]  # GLOBAL
+        headline = {
+            "modality_contrib_var_share_expression_global": g["var_share_expression"],
+            "modality_contrib_var_share_splicing_global": g["var_share_splicing"],
+            "modality_contrib_var_share_interaction_global": g["var_share_interaction"],
+            "modality_contrib_median_norm_ratio_global": g["median_norm_ratio_spl_over_expr"],
+            "modality_contrib_mean_w_expr_recovered": g["mean_w_expr_recovered"],
+        }
+        print(f"[MODALITY_CONTRIB] {split_name} GLOBAL | var_share expr={g['var_share_expression']:.3f} "
+              f"spl={g['var_share_splicing']:.3f} interaction={g['var_share_interaction']:.3f} | "
+              f"median norm ratio (spl/expr)={g['median_norm_ratio_spl_over_expr']:.3f}")
+
+    df = pd.DataFrame(rows)
+    csv_path = os.path.join(fig_dir, f"modality_contribution_{split_name}.csv")
+    df.to_csv(csv_path, index=False)
+    print(f"[MODALITY_CONTRIB] Wrote {csv_path}")
+    return headline
+
+
 def run_cross_fold_classification(
     split_name: str,
     mdata,
@@ -1167,22 +1279,38 @@ def write_experiment_fragment(experiment_dir, model_dir, headline_metrics, run):
     """Write an eval_<model_basename>.json fragment for the experiment-tracking
     leaderboard (see SpliceVI-utils/script_outputs/experiments/tally_experiments.py).
     Best-effort: a failure here must never fail the eval job itself.
+
+    MERGES with any existing fragment of the same name rather than overwriting it: a partial rerun
+    (e.g. --evals modality_contribution only, to retrofit a new eval block onto an already-evaluated
+    model) updates/adds just its own headline_metrics keys and keeps everything the previous run
+    wrote (other headline_metrics keys, wandb link) unless this run itself provides a replacement.
     """
     try:
         os.makedirs(experiment_dir, exist_ok=True)
         model_basename = os.path.basename(os.path.normpath(model_dir))
+        out_path = os.path.join(experiment_dir, f"eval_{model_basename}.json")
+        existing = {}
+        if os.path.exists(out_path):
+            try:
+                with open(out_path) as f:
+                    existing = json.load(f)
+            except Exception as e:  # noqa: BLE001
+                print(f"[EXPERIMENT] WARNING: could not read existing {out_path} to merge, overwriting: {e}")
+        merged_headline = {**existing.get("headline_metrics", {}), **headline_metrics}
+        wandb_url = getattr(run, "url", None) if run is not None else existing.get("wandb_run_url")
+        wandb_id = getattr(run, "id", None) if run is not None else existing.get("wandb_run_id")
         fragment = {
             "model_dir": model_dir,
             "model_kind": "splicevi",
-            "headline_metrics": headline_metrics,
-            "wandb_run_url": getattr(run, "url", None) if run is not None else None,
-            "wandb_run_id": getattr(run, "id", None) if run is not None else None,
+            "headline_metrics": merged_headline,
+            "wandb_run_url": wandb_url,
+            "wandb_run_id": wandb_id,
             "finished_at": datetime.now(timezone.utc).isoformat(),
         }
-        out_path = os.path.join(experiment_dir, f"eval_{model_basename}.json")
         with open(out_path, "w") as f:
             json.dump(fragment, f, indent=2, default=str)
-        print(f"[EXPERIMENT] Wrote {out_path}")
+        print(f"[EXPERIMENT] Wrote {out_path}"
+              + (f" (merged with existing {len(existing.get('headline_metrics', {}))} keys)" if existing else ""))
     except Exception as e:  # noqa: BLE001
         print(f"[EXPERIMENT] WARNING: failed to write experiment fragment: {e}")
 
@@ -1442,12 +1570,21 @@ def build_argparser():
         help=(
             "Which eval blocks to run. Choices among: "
             "latent_visualization, clustering, train_eval, test_eval, "
-            "masked_impute, cross_fold_classification, test_impute. "
+            "masked_impute, cross_fold_classification, test_impute, "
+            "subcluster_split_eval, modality_contribution. "
             "'umap' is accepted as an alias for latent_visualization (legacy). "
             "test_impute runs the unmasked test mdata through the model and compares "
             "imputed PSI against junc_ratio (the perfect / upper-bound baseline). "
-            "Uses the same boundary-PSI and min-ATSE-count filters as masked_impute."
+            "Uses the same boundary-PSI and min-ATSE-count filters as masked_impute. "
+            "modality_contribution runs on TEST only: how much each modality's own encoder "
+            "displaces the joint latent per cell (norm ratio + variance share), NOT a measure of "
+            "information content -- see run_modality_contribution()'s docstring."
         ),
+    )
+    parser.add_argument(
+        "--modality_contrib_group_col", default="broad_cell_type",
+        help="Extra .obs breakdown column for modality_contribution (GLOBAL is always included); "
+             "set to 'None' to skip the breakdown.",
     )
 
     # Cross-fold classification settings
@@ -1796,6 +1933,7 @@ def main():
         "cross_fold_group_by": args.cross_fold_group_by,
         "cross_fold_age_method": args.cross_fold_age_method,
         "cross_fold_classifiers": cross_fold_classifiers,
+        "modality_contrib_group_col": args.modality_contrib_group_col,
     }
 
     # Headline metrics accumulated for the experiment-tracking leaderboard
@@ -2703,6 +2841,7 @@ def main():
         ("test_eval" in EVALS)
         or ("cross_fold_classification" in EVALS and run_crossfold_test)
         or ("latent_visualization" in EVALS and run_viz_test)
+        or ("modality_contribution" in EVALS)
     ):
         print("[MODEL] Computing latent representations on TEST for evaluation...")
         latent_spaces_test = {
@@ -2721,6 +2860,15 @@ def main():
 
     if "latent_visualization" in EVALS and run_viz_test:
         _run_latent_viz("test", mdata_test, latent_spaces_test, umap_obs_keys)
+
+    if "modality_contribution" in EVALS:
+        headline_metrics.update(
+            run_modality_contribution(
+                "test", mdata_test, latent_spaces_test, model, args.fig_dir,
+                group_col=None if str(args.modality_contrib_group_col).lower() == "none"
+                else args.modality_contrib_group_col,
+            )
+        )
 
     if "test_eval" in EVALS:
         print("[EVAL/TEST] Starting test-split latent quality evaluation...")
