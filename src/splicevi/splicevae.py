@@ -319,7 +319,7 @@ class SPLICEVAE(BaseModuleClass):
         phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
-        phi_init: Literal["log100", "prior"] = "log100",
+        phi_init: Literal["log100", "prior", "constant"] = "log100",
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
         code_dim: int = 16,
@@ -386,8 +386,8 @@ class SPLICEVAE(BaseModuleClass):
         self.lambda_prior = lambda_prior
         if phi_prior not in ("l2_log", "gamma", "none"):
             raise ValueError("phi_prior must be one of ['l2_log', 'gamma', 'none']")
-        if phi_init not in ("log100", "prior"):
-            raise ValueError("phi_init must be one of ['log100', 'prior']")
+        if phi_init not in ("log100", "prior", "constant"):
+            raise ValueError("phi_init must be one of ['log100', 'prior', 'constant']")
         if phi_floor < 0:
             raise ValueError("phi_floor must be >= 0")
         self.phi_floor = float(phi_floor)
@@ -584,6 +584,13 @@ class SPLICEVAE(BaseModuleClass):
             if size is None:
                 return nn.Parameter(torch.tensor(4.6))
             return nn.Parameter(torch.randn(size) * 0.5 + np.log(100.0))
+        if self.phi_init == "constant":
+            # STAGE5 section 29/58: the log100 init without its random draw -- every ATSE starts at exactly
+            # log 100 (phi ~ 4.6). Per-ATSE phi is not identified (section 19), so the draw only added
+            # replicate variance.
+            if size is None:
+                return nn.Parameter(torch.tensor(float(np.log(100.0))))
+            return nn.Parameter(torch.full((size,), float(np.log(100.0))))
         shape = () if size is None else (size,)
         gamma = torch.distributions.Gamma(
             torch.tensor(self.phi_prior_shape), torch.tensor(self.phi_prior_rate)

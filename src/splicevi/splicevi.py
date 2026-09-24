@@ -449,7 +449,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
-        phi_init: Literal["log100", "prior"] = "log100",
+        phi_init: Literal["log100", "prior", "constant"] = "log100",
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
