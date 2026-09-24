@@ -4,7 +4,7 @@
 #SBATCH --error=logs/splicevi_train_%j.err
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --mem=128G
+#SBATCH --mem=64G
 #SBATCH --exclude=ne1dg7-001,ne1dg7-002,ne1dg7-003,ne1dg7-004,ne1dg7-005,ne1dg7-006,ne1dg7-007,ne1dg7-008,ne1dg7-009,ne1dg7-010
 #SBATCH --cpus-per-task=4
 #SBATCH --time=20:00:00
