@@ -151,6 +151,12 @@ def build_argparser(init_defaults, train_defaults):
         help="If set, scvi.settings.seed = seed before the model is built (seeds torch, numpy, random, lightning).",
     )
 
+    # STAGE5 section 63: gradient budget every N epochs on fixed batches (default off)
+    parser.add_argument("--log_gradient_budget", type=str2bool, default=False,
+                        help="Log R_s / R_e / cosines every --gradient_budget_every epochs to <model_dir>/gradient_budget_train.tsv.")
+    parser.add_argument("--gradient_budget_every", type=int, default=50)
+    parser.add_argument("--gradient_budget_seed", type=int, default=20260924)
+
     # Optional: experiment-tracking leaderboard hook (see SpliceVI-utils/script_outputs/experiments/)
     parser.add_argument(
         "--experiment_dir",
@@ -397,6 +403,12 @@ def main():
         for name in train_defaults
         if getattr(args, name) is not None
     }
+
+    if args.log_gradient_budget:
+        from splicevi.gradient_budget import GradientBudgetCallback
+        train_kwargs["callbacks"] = [GradientBudgetCallback(model, mdata, os.path.join(args.model_dir, "gradient_budget_train.tsv"),
+                                                            every=args.gradient_budget_every, seed=args.gradient_budget_seed)]
+        print(f"[GRADIENT_BUDGET] logging every {args.gradient_budget_every} epochs on 20 fixed batches of 512 (seed {args.gradient_budget_seed})")
 
     print("[TRAIN] Starting training with the following overrides:")
     if train_kwargs:
