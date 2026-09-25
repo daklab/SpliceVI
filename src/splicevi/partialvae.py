@@ -275,6 +275,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         pool_mode: Literal["mean", "sum", "precision"] = "mean",   # precision: weighted mean, weights passed to forward (STAGE5 s31)
         max_nobs: int = -1,
         encoder_n_layers: int = 2,    
+        psi_input: Literal["raw", "centred"] = "raw",   # STAGE5 s68.1: "centred" feeds psi - population psi (buffer pop_psi, set from the training data)
     ):
         super().__init__()
         ...
@@ -282,6 +283,9 @@ class PartialEncoderEDDIFaster(nn.Module):
         super().__init__()
         self.code_dim = code_dim
         self.pool_mode = pool_mode
+        self.psi_input = psi_input
+        if psi_input == "centred":
+            self.register_buffer("pop_psi", torch.zeros(input_dim))   # only registered when used, so older checkpoints still load
         self.n_cat_list = [n for n in (n_cat_list or []) if n > 1]
         self.n_cont = n_cont
         self.inject_covariates = inject_covariates
@@ -365,6 +369,8 @@ class PartialEncoderEDDIFaster(nn.Module):
         if (self.max_nobs < 0) or (N_obs <= self.max_nobs):
             # ---- Original (no chunking) path ----
             x_obs = x[b_idx, j_idx].unsqueeze(1)                  # (N_obs, 1)
+            if self.psi_input == "centred":
+                x_obs = x_obs - self.pop_psi[j_idx].unsqueeze(1)     # s68.1: deviation from population psi
             F_obs = F_j_norm.index_select(0, j_idx)               # (N_obs, D), already L2-normalized
 
             F_obs_scaled = F_obs * x_obs                          # broadcast scale by usage ratio
@@ -391,6 +397,8 @@ class PartialEncoderEDDIFaster(nn.Module):
                 jj = j_idx[start:end]                             # (n,)
 
                 x_chunk = x[bi, jj].unsqueeze(1)                  # (n, 1)
+                if self.psi_input == "centred":
+                    x_chunk = x_chunk - self.pop_psi[jj].unsqueeze(1)
                 F_chunk = F_j_norm.index_select(0, jj)            # (n, D), already L2-normalized
 
                 F_chunk_scaled = F_chunk * x_chunk                # scale by usage ratio

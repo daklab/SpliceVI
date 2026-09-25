@@ -328,6 +328,7 @@ class SPLICEVAE(BaseModuleClass):
         pool_mode: Literal["mean", "sum", "precision"] = "mean",
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         stop_gradient_spl_to_expr: bool = False,   # STAGE5 s46: detach the splicing posterior on the expression-decoder path
+        psi_input: Literal["raw", "centred"] = "raw",   # STAGE5 s68.1
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -344,6 +345,7 @@ class SPLICEVAE(BaseModuleClass):
         self.n_input_genes = n_input_genes
         self.n_input_junctions = n_input_junctions
         self.pool_mode = pool_mode
+        self.psi_input = psi_input
         self.precision_weight = precision_weight
         self.stop_gradient_spl_to_expr = stop_gradient_spl_to_expr
 
@@ -509,6 +511,7 @@ class SPLICEVAE(BaseModuleClass):
                 pool_mode=pool_mode,
                 max_nobs=max_nobs,
                 encoder_n_layers=n_layers_encoder,
+                psi_input=psi_input,
             )
 
             if latent_distribution == "ln":

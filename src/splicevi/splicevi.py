@@ -463,6 +463,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         pool_mode: Literal["mean", "sum", "precision"] = "mean",
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         stop_gradient_spl_to_expr: bool = False,
+        psi_input: Literal["raw", "centred"] = "raw",                       # STAGE5 s68.1: encoder input psi - population psi
+        decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -539,6 +541,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             pool_mode=pool_mode,
             precision_weight=precision_weight,
             stop_gradient_spl_to_expr=stop_gradient_spl_to_expr,
+            psi_input=psi_input,
             max_nobs=max_nobs,
 
             # extras
@@ -560,7 +563,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, precision_weight={precision_weight}, "
             f"max_nobs={max_nobs}) | "
-            f"init_from_pca={initialize_embeddings_from_pca}"
+            f"init_from_pca={initialize_embeddings_from_pca}, psi_input={psi_input}, decoder_intercept_init={decoder_intercept_init}"
         )
 
         self.fully_paired = fully_paired
@@ -575,6 +578,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         if self.adata is not None:
             if initialize_embeddings_from_pca and splicing_encoder_architecture == "partial":
                 self.init_feature_embedding_from_adata()
+            if psi_input == "centred" and splicing_encoder_architecture == "partial":
+                self.init_pop_psi_from_adata()          # STAGE5 s68.1
+            if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
+                self.init_decoder_intercept_from_adata()  # STAGE5 s68.6
 
             # Only needed for DM splicing likelihood
             if splicing_loss_type == "dirichlet_multinomial":
@@ -615,6 +622,36 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         j2a = self.make_junc2atse(atse_labels)
         self.module.junc2atse = j2a.coalesce().to(self.module.device)
 
+
+    def population_psi_from_adata(self) -> np.ndarray:
+        """Read-weighted population PSI per junction from the registered count layers of the training data:
+        sum over cells of junction counts / sum over cells of the event total (the atse_counts layer repeats the
+        event total on every junction of the event, so its column sum is the event's read total). 0 where no reads.
+        STAGE5 s68.1 / s68.6; the same quantity as the content-only null's p_pop (section 50)."""
+        jc = self.adata_manager.data_registry["junc_counts_key"]; ac = self.adata_manager.data_registry["atse_counts_key"]
+        K = self.adata[jc.mod_key].layers[jc.attr_key]; N = self.adata[ac.mod_key].layers[ac.attr_key]
+        num = np.asarray(K.sum(axis=0)).ravel().astype(np.float64); den = np.asarray(N.sum(axis=0)).ravel().astype(np.float64)
+        return np.divide(num, den, out=np.zeros_like(num), where=den > 0)
+
+    def init_pop_psi_from_adata(self) -> None:
+        """STAGE5 s68.1: fill the partial encoder's pop_psi buffer with the read-weighted population PSI."""
+        print("Initializing pop_psi (centred PSI input) from the training data...")
+        p_pop = self.population_psi_from_adata()
+        with torch.no_grad():
+            buf = self.module.z_encoder_splicing.pop_psi
+            buf.copy_(torch.as_tensor(p_pop, dtype=buf.dtype, device=buf.device))
+        print(f"pop_psi set: {int((p_pop > 0).sum())} of {len(p_pop)} junctions with reads; mean {p_pop.mean():.4f}")
+
+    def init_decoder_intercept_from_adata(self) -> None:
+        """STAGE5 s68.6: initialise the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
+        the within-event softmax reproduces the read-weighted population PSI: bias_j = log(clip(p_pop_j, 1e-4, 1)).
+        (generative() maps sigmoid(bias) -> clamp -> logit -> group softmax, i.e. softmax over the event of the bias.)"""
+        print("Initializing the splicing-decoder intercept at log(population PSI)...")
+        p_pop = self.population_psi_from_adata()
+        with torch.no_grad():
+            b = self.module.z_decoder_splicing.ps_output.bias
+            b.copy_(torch.as_tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=b.dtype, device=b.device))
+        print(f"decoder intercept set from population PSI ({len(p_pop)} junctions)")
 
     def init_feature_embedding_from_adata(self) -> None:
         print("Initializing feature embeddings...")
