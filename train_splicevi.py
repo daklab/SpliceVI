@@ -136,6 +136,10 @@ def build_argparser(init_defaults, train_defaults):
         default=None,
         help="Optional W&B group name.",
     )
+    parser.add_argument("--wandb_tags", type=str, default=None,
+                        help="Optional comma-separated W&B tags (STAGE3 logging convention, 2026-09-25).")
+    parser.add_argument("--wandb_job_type", type=str, default="train",
+                        help="W&B job_type (train | eval).")
     parser.add_argument(
         "--wandb_log_freq",
         type=int,
@@ -364,12 +368,24 @@ def main():
             raise ValueError("[W&B] --wandb_project is required when --use_wandb is set.")
 
         print("[W&B] Initializing Weights & Biases run...")
+        # STAGE3 logging convention: git SHA/branch of the code, data file and seed in the config; tags and job_type.
+        try:
+            import subprocess as _sp
+            _here = os.path.dirname(os.path.abspath(__file__))
+            full_config["git_sha"] = _sp.check_output(["git", "-C", _here, "rev-parse", "--short", "HEAD"], text=True).strip()
+            full_config["git_branch"] = _sp.check_output(["git", "-C", _here, "branch", "--show-current"], text=True).strip()
+            full_config["git_dirty"] = bool(_sp.check_output(["git", "-C", _here, "status", "--porcelain", "--", "src", "train_splicevi.py"], text=True).strip())
+        except Exception as _e:  # never fail training over bookkeeping
+            full_config["git_sha"] = f"unavailable ({_e})"
+        _tags = [t for t in (args.wandb_tags.split(",") if args.wandb_tags else []) if t]
         run = wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
             name=args.wandb_run_name,
             group=args.wandb_group,
             config=full_config,
+            tags=_tags or None,
+            job_type=args.wandb_job_type,
         )
         wandb_logger = WandbLogger(
             project=args.wandb_project,
