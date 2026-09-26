@@ -674,8 +674,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         X = self.adata[rna_info.mod_key].layers[rna_info.attr_key] if rna_info.attr_name == "layers" else self.adata[rna_info.mod_key].X
         n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float64)
         M = self.adata[mk.mod_key].layers[mk.attr_key]; n_junc = np.asarray((M > 0).sum(axis=1)).ravel().astype(np.float64)
-        sf = self.adata_manager.data_registry.get(REGISTRY_KEYS.SIZE_FACTOR_KEY, None)
-        lib = np.asarray(self.adata[sf.mod_key].obsm[sf.attr_key]).ravel().astype(np.float64) if sf is not None and sf.attr_name == "obsm" else (np.asarray(self.adata[sf.mod_key].obs[sf.attr_key]).ravel().astype(np.float64) if sf is not None else np.asarray(X.sum(axis=1)).ravel())
+        # size factor is a NumericalJointObsField (top-level mudata obsm, no mod_key): resolve it through the manager
+        lib = np.asarray(self.adata_manager.get_from_registry(REGISTRY_KEYS.SIZE_FACTOR_KEY)).ravel().astype(np.float64) if REGISTRY_KEYS.SIZE_FACTOR_KEY in self.adata_manager.data_registry else np.asarray(X.sum(axis=1)).ravel()
         cov = np.log1p(np.column_stack([n_genes, n_junc, lib]))
         with torch.no_grad():
             self.module.depth_cov_mean.copy_(torch.as_tensor(cov.mean(0), dtype=self.module.depth_cov_mean.dtype)); self.module.depth_cov_std.copy_(torch.as_tensor(cov.std(0) + 1e-6, dtype=self.module.depth_cov_std.dtype))
