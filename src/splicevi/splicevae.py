@@ -329,6 +329,9 @@ class SPLICEVAE(BaseModuleClass):
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         stop_gradient_spl_to_expr: bool = False,   # STAGE5 s46: detach the splicing posterior on the expression-decoder path
         psi_input: Literal["raw", "centred"] = "raw",   # STAGE5 s68.1
+        event_dropout: float = 0.0,                  # STAGE5 s68.9: fraction of each cell's observed events hidden from the ENCODER per minibatch (decoder still scores them)
+        decoder_depth_covariates: bool = False,      # STAGE5 s68.4a: [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
+        phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -346,6 +349,11 @@ class SPLICEVAE(BaseModuleClass):
         self.n_input_junctions = n_input_junctions
         self.pool_mode = pool_mode
         self.psi_input = psi_input
+        self.event_dropout = float(event_dropout)
+        self.decoder_depth_covariates = bool(decoder_depth_covariates)
+        self.phi_lr_mult = float(phi_lr_mult)
+        if self.decoder_depth_covariates:
+            self.register_buffer("depth_cov_mean", torch.zeros(3)); self.register_buffer("depth_cov_std", torch.ones(3))
         self.precision_weight = precision_weight
         self.stop_gradient_spl_to_expr = stop_gradient_spl_to_expr
 
@@ -440,7 +448,7 @@ class SPLICEVAE(BaseModuleClass):
             deep_inject_covariates=deeply_inject_covariates,
         )
 
-        n_input_decoder = self.n_latent + self.n_continuous_cov
+        n_input_decoder = self.n_latent + self.n_continuous_cov + (3 if self.decoder_depth_covariates else 0)   # s68.4a
 
         if expression_architecture == "vanilla":
             self.z_decoder_expression = DecoderSCVI(
@@ -532,6 +540,8 @@ class SPLICEVAE(BaseModuleClass):
                 deep_inject_covariates=deeply_inject_covariates,
             )
         else:
+            if self.decoder_depth_covariates:
+                raise ValueError("decoder_depth_covariates is implemented for the vanilla splicing decoder only")
             input_linear_splicing_decoder = self.n_latent
             self.z_decoder_splicing = LinearDecoder(
                 latent_dim=input_linear_splicing_decoder,
@@ -577,6 +587,13 @@ class SPLICEVAE(BaseModuleClass):
         return x_spl.sum(dim=1) > -10000000000000
 
     def init_log_phi(self, size: int | None) -> nn.Parameter:
+        p = self._init_log_phi_raw(size)
+        if getattr(self, "phi_lr_mult", 1.0) != 1.0:
+            with torch.no_grad():
+                p.data.div_(self.phi_lr_mult)   # s68.10: same effective initial phi whatever the multiplier
+        return p
+
+    def _init_log_phi_raw(self, size: int | None) -> nn.Parameter:
         """Initial raw concentration parameter. ``size=None`` gives the scalar DM parameter.
 
         Default ("log100") reproduces the original init exactly (per-ATSE / per-junction:
@@ -602,9 +619,13 @@ class SPLICEVAE(BaseModuleClass):
         excess = torch.clamp(phi0 - self.phi_floor, min=1e-3)
         return nn.Parameter(_softplus_inverse(excess))
 
+    def _log_phi_eff(self) -> torch.Tensor:
+        """s68.10: the effective log-concentration; the stored parameter is scaled by 1/phi_lr_mult so Adam moves it mult x faster."""
+        return self.log_phi_j * self.phi_lr_mult if self.phi_lr_mult != 1.0 else self.log_phi_j
+
     def get_phi(self) -> torch.Tensor:
         """Effective DM / beta-binomial concentration used by the loss and by DM-normalized PSI."""
-        return self.phi_floor + F.softplus(self.log_phi_j)
+        return self.phi_floor + F.softplus(self._log_phi_eff())
 
     def phi_prior_loss(self, batch_size: int):
         """Regularizer on the concentration (0.0 for non-DM/BB likelihoods or phi_prior='none')."""
@@ -613,7 +634,7 @@ class SPLICEVAE(BaseModuleClass):
         if self.phi_prior == "none":
             return 0.0
         if self.phi_prior == "l2_log":
-            return self.lambda_prior * torch.square(self.log_phi_j).sum() / batch_size
+            return self.lambda_prior * torch.square(self._log_phi_eff()).sum() / batch_size
         phi = self.get_phi()
         neg_log_prior = -((self.phi_prior_shape - 1.0) * torch.log(phi) - self.phi_prior_rate * phi).sum()
         return neg_log_prior / max(self.n_obs, 1)
@@ -664,12 +685,27 @@ class SPLICEVAE(BaseModuleClass):
         mask_expr = x_expr.sum(dim=1) > 0
         mask_spl = self._splicing_cell_mask(x_spl, mask)
 
+        # STAGE5 s68.9: hide a fraction of each cell's observed events from the ENCODER only (training mode only)
+        enc_hidden = None; x_spl_enc = x_spl; mask_enc = mask
+        if self.event_dropout > 0.0 and self.training and mask is not None and hasattr(self, "junc2atse"):
+            idx_p, idx_g = self.junc2atse.indices(); group_idx = torch.empty(self.n_input_junctions, dtype=torch.long, device=x_spl.device); group_idx[idx_p.to(x_spl.device)] = idx_g.to(x_spl.device)
+            keep_g = (torch.rand(x_spl.shape[0], int(self.junc2atse.shape[1]), device=x_spl.device) >= self.event_dropout).to(x_spl.dtype)
+            keep_j = keep_g[:, group_idx]
+            mask_enc = mask * keep_j; x_spl_enc = x_spl * keep_j; enc_hidden = mask * (1.0 - keep_j)   # observed junctions hidden from the encoder
+
+        # STAGE5 s68.4a: per-cell depth/detection covariates for the decoders (standardised with training constants)
+        depth_cov = None
+        if self.decoder_depth_covariates:
+            lib = size_factor[:, 0] if size_factor is not None else x_expr.sum(dim=1)
+            raw_cov = torch.stack([torch.log1p((x_expr > 0).sum(dim=1).to(x_expr.dtype)), torch.log1p(mask.sum(dim=1).to(x_expr.dtype)) if mask is not None else torch.zeros_like(lib), torch.log1p(lib.to(x_expr.dtype))], dim=1)
+            depth_cov = (raw_cov - self.depth_cov_mean) / self.depth_cov_std
+
         if cont_covs is not None and self.encode_covariates:
             encoder_input_expr = torch.cat((x_expr, cont_covs), dim=-1)
-            encoder_input_spl = torch.cat((x_spl, cont_covs), dim=-1)
+            encoder_input_spl = torch.cat((x_spl_enc, cont_covs), dim=-1)
         else:
             encoder_input_expr = x_expr
-            encoder_input_spl = x_spl
+            encoder_input_spl = x_spl_enc
 
         if cat_covs is not None and self.encode_covariates:
             categorical_input = torch.split(cat_covs, 1, dim=1)
@@ -703,7 +739,7 @@ class SPLICEVAE(BaseModuleClass):
                 if self.precision_weight == "sqrt_atse_total":
                     pool_weights = torch.sqrt(pool_weights)
             mu, raw_logvar = self.z_encoder_splicing(
-                x_spl, mask, batch_index, *categorical_input, cont=cont_covs, weights=pool_weights
+                x_spl_enc, mask_enc, batch_index, *categorical_input, cont=cont_covs, weights=pool_weights
             )
 
             # print(
@@ -867,6 +903,8 @@ class SPLICEVAE(BaseModuleClass):
             "qzv_spl": qzv_spl,
             "libsize_expr": libsize_expr,
             "x": x,
+            "enc_hidden": enc_hidden,     # s68.9 (None unless event_dropout > 0 in training)
+            "depth_cov": depth_cov,       # s68.4a (None unless decoder_depth_covariates)
         }
 
     def _get_generative_input(self, tensors, inference_outputs, transform_batch=None):
@@ -896,11 +934,12 @@ class SPLICEVAE(BaseModuleClass):
             "cat_covs": cat_covs,
             "libsize_expr": libsize_expr,
             "label": label,
+            "depth_cov": inference_outputs.get("depth_cov", None),
         }
         return input_dict
 
     @auto_move_data
-    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None, z_expr_path=None):
+    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None, z_expr_path=None, depth_cov=None):
         """Run the generative model to decode gene expression and splicing.
 
         Decodes the latent representation into parameters for gene expression reconstruction
@@ -953,6 +992,10 @@ class SPLICEVAE(BaseModuleClass):
             dec_in_expr = latent_expr
             dec_in_spl  = latent
 
+        if depth_cov is not None:   # s68.4a: decoders (only) see the depth covariates
+            def _attach_depth(rep):
+                return torch.cat([rep, depth_cov.unsqueeze(0).expand(rep.size(0), -1, -1)], dim=-1) if rep.dim() != depth_cov.dim() else torch.cat([rep, depth_cov], dim=-1)
+            dec_in_expr = _attach_depth(dec_in_expr); dec_in_spl = _attach_depth(dec_in_spl)
         decoder_input_expr = _attach_cont(dec_in_expr)
         # NOTE: partial splicing decoder expects cont covs via arg, not concatenated
         decoder_input_spl  = _attach_cont(dec_in_spl) if self.splicing_decoder_architecture == "vanilla" else dec_in_spl
@@ -1160,7 +1203,16 @@ class SPLICEVAE(BaseModuleClass):
             "kl_divergence_z": kl_div_z,
             "kl_divergence_paired": kl_div_paired,
         }
-        return LossOutput(loss=loss, reconstruction_loss=recon_losses, kl_local=kl_local)
+        extra = {}
+        enc_hidden = inference_outputs.get("enc_hidden", None)
+        if enc_hidden is not None and self.splicing_loss_type == "dirichlet_multinomial" and total_counts is not None:
+            # s68.9: DM loss on the events hidden from the encoder vs the visible ones (decoder scores both; totals given)
+            with torch.no_grad():
+                vis = psi_mask.to(enc_hidden.dtype) * (1.0 - enc_hidden) if psi_mask is not None else (1.0 - enc_hidden)
+                rl_hidden = self.get_reconstruction_loss_splicing(x_spl, total_counts * enc_hidden, junction_counts, enc_hidden, generative_outputs["p"], generative_outputs["phi"])
+                rl_visible = self.get_reconstruction_loss_splicing(x_spl, total_counts * vis, junction_counts, vis, generative_outputs["p"], generative_outputs["phi"])
+                extra = {"rl_spl_hidden_events": rl_hidden.mean(), "rl_spl_visible_events": rl_visible.mean(), "frac_junctions_hidden": (enc_hidden.sum() / psi_mask.sum().clamp_min(1.0)) if psi_mask is not None else enc_hidden.mean()}
+        return LossOutput(loss=loss, reconstruction_loss=recon_losses, kl_local=kl_local, extra_metrics=extra)
 
     def get_reconstruction_loss_expression(self, x, px_rate, px_r, px_dropout):
         """Compute the reconstruction loss for gene expression data."""

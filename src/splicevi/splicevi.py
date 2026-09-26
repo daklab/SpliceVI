@@ -465,6 +465,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         stop_gradient_spl_to_expr: bool = False,
         psi_input: Literal["raw", "centred"] = "raw",                       # STAGE5 s68.1: encoder input psi - population psi
         decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
+        event_dropout: float = 0.0,                      # STAGE5 s68.9
+        decoder_depth_covariates: bool = False,          # STAGE5 s68.4a
+        phi_lr_mult: float = 1.0,                        # STAGE5 s68.10
+        embedding_init_permute: bool = False,            # STAGE5 s68.11: permute the SVD-initialised embedding rows across junctions (seeded by scvi.settings.seed)
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -542,6 +546,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             precision_weight=precision_weight,
             stop_gradient_spl_to_expr=stop_gradient_spl_to_expr,
             psi_input=psi_input,
+            event_dropout=event_dropout,
+            decoder_depth_covariates=decoder_depth_covariates,
+            phi_lr_mult=phi_lr_mult,
             max_nobs=max_nobs,
 
             # extras
@@ -578,10 +585,16 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         if self.adata is not None:
             if initialize_embeddings_from_pca and splicing_encoder_architecture == "partial":
                 self.init_feature_embedding_from_adata()
+                if embedding_init_permute:   # STAGE5 s68.11
+                    with torch.no_grad():
+                        emb = self.module.z_encoder_splicing.feature_embedding; perm = torch.randperm(emb.shape[0], device=emb.device); emb.copy_(emb[perm].clone())
+                    print("Permuted the SVD-initialised embedding rows across junctions (s68.11)")
             if psi_input == "centred" and splicing_encoder_architecture == "partial":
                 self.init_pop_psi_from_adata()          # STAGE5 s68.1
             if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
                 self.init_decoder_intercept_from_adata()  # STAGE5 s68.6
+            if decoder_depth_covariates:
+                self.init_depth_covariate_stats_from_adata()  # STAGE5 s68.4a
 
             # Only needed for DM splicing likelihood
             if splicing_loss_type == "dirichlet_multinomial":
@@ -652,6 +665,21 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             b = self.module.z_decoder_splicing.ps_output.bias
             b.copy_(torch.as_tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=b.dtype, device=b.device))
         print(f"decoder intercept set from population PSI ({len(p_pop)} junctions)")
+
+    def init_depth_covariate_stats_from_adata(self) -> None:
+        """STAGE5 s68.4a: mean/std of [log1p detected genes, log1p observed junctions, log1p library size] over the training cells,
+        stored as buffers so the decoders' covariates are standardised with training constants (same definitions as inference())."""
+        import scipy.sparse as sp
+        rna_info = self.adata_manager.data_registry[REGISTRY_KEYS.X_KEY]; mk = self.adata_manager.data_registry["psi_observed_mask"]
+        X = self.adata[rna_info.mod_key].layers[rna_info.attr_key] if rna_info.attr_name == "layers" else self.adata[rna_info.mod_key].X
+        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float64)
+        M = self.adata[mk.mod_key].layers[mk.attr_key]; n_junc = np.asarray((M > 0).sum(axis=1)).ravel().astype(np.float64)
+        sf = self.adata_manager.data_registry.get(REGISTRY_KEYS.SIZE_FACTOR_KEY, None)
+        lib = np.asarray(self.adata[sf.mod_key].obsm[sf.attr_key]).ravel().astype(np.float64) if sf is not None and sf.attr_name == "obsm" else (np.asarray(self.adata[sf.mod_key].obs[sf.attr_key]).ravel().astype(np.float64) if sf is not None else np.asarray(X.sum(axis=1)).ravel())
+        cov = np.log1p(np.column_stack([n_genes, n_junc, lib]))
+        with torch.no_grad():
+            self.module.depth_cov_mean.copy_(torch.as_tensor(cov.mean(0), dtype=self.module.depth_cov_mean.dtype)); self.module.depth_cov_std.copy_(torch.as_tensor(cov.std(0) + 1e-6, dtype=self.module.depth_cov_std.dtype))
+        print(f"depth covariate stats set (train): mean {cov.mean(0).round(3)}, std {cov.std(0).round(3)}")
 
     def init_feature_embedding_from_adata(self) -> None:
         print("Initializing feature embeddings...")
