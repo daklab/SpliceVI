@@ -452,7 +452,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         phi_init: Literal["log100", "prior", "constant"] = "log100",
 
         # --- Architecture toggles ---
-        splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
+        splicing_encoder_architecture: Literal["vanilla", "partial", "token"] = "partial",
         splicing_decoder_architecture: Literal["vanilla", "linear"] = "vanilla",
         expression_architecture: Literal["vanilla", "linear"] = "vanilla",
 
@@ -589,6 +589,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                     with torch.no_grad():
                         emb = self.module.z_encoder_splicing.feature_embedding; perm = torch.randperm(emb.shape[0], device=emb.device); emb.copy_(emb[perm].clone())
                     print("Permuted the SVD-initialised embedding rows across junctions (s68.11)")
+            if splicing_encoder_architecture == "token":
+                self.init_token_index_from_adata()      # STAGE5 s86.3
             if psi_input == "centred" and splicing_encoder_architecture == "partial":
                 self.init_pop_psi_from_adata()          # STAGE5 s68.1
             if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
@@ -602,6 +604,16 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
 
         
+    def init_token_index_from_adata(self) -> None:
+        """STAGE5 s86.3: junction -> event and junction -> gene codes for the token encoder (from the registered splicing modality's var)."""
+        jr = self.adata_manager.data_registry["junc_ratio"] if "junc_ratio" in self.adata_manager.data_registry else self.adata_manager.data_registry["junc_ratio_key"]
+        var = self.adata[jr.mod_key].var
+        ev = torch.as_tensor(var["event_id"].astype("category").cat.codes.values.astype(np.int64))
+        gcol = "gene_id" if "gene_id" in var.columns else "gene_name"
+        gn = torch.as_tensor(var[gcol].astype(str).astype("category").cat.codes.values.astype(np.int64))
+        self.module.z_encoder_splicing.set_index(ev, gn)
+        print(f"token encoder index set: {int(ev.max()) + 1} events, {int(gn.max()) + 1} genes ({gcol})")
+
     def make_junc2atse(self, atse_labels):
         print("Making Junc2Atse...")
         num_junctions = len(atse_labels)

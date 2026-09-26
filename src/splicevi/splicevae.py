@@ -294,7 +294,7 @@ class SPLICEVAE(BaseModuleClass):
         use_size_factor_key: bool = False,
 
         # --- Architecture toggles ---
-        splicing_encoder_architecture: Literal["vanilla", "partial"] = "vanilla",
+        splicing_encoder_architecture: Literal["vanilla", "partial", "token"] = "vanilla",   # "token": STAGE5 s85 one vote per event, grouped by gene
         splicing_decoder_architecture: Literal["vanilla", "linear"] = "vanilla",
         expression_architecture: Literal["vanilla", "linear"] = "vanilla",
 
@@ -503,6 +503,13 @@ class SPLICEVAE(BaseModuleClass):
                 use_batch_norm=self.use_batch_norm_encoder,
                 use_layer_norm=self.use_layer_norm_encoder,
                 return_dist=False,
+            )
+        elif splicing_encoder_architecture == "token":
+            # STAGE5 s85/s86.3: one vote per observed event (winning junction), votes averaged within gene; same forward signature as the partial encoder
+            from .tokenencoder import TokenVoteEncoder
+            self.z_encoder_splicing = TokenVoteEncoder(
+                input_dim=input_spl, code_dim=code_dim, h_hidden_dim=h_hidden_dim, encoder_hidden_dim=encoder_hidden_dim, latent_dim=self.encoder_latent_dim,
+                dropout_rate=dropout_rate, n_cat_list=encoder_cat_list, n_cont=n_continuous_cov, inject_covariates=encode_covariates, encoder_n_layers=n_layers_encoder,
             )
         else:
             # Partial splicing encoder: PartialEncoderEDDIFaster only
