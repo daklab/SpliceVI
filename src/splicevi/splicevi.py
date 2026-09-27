@@ -469,6 +469,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         decoder_depth_covariates: bool = False,          # STAGE5 s68.4a
         phi_lr_mult: float = 1.0,                        # STAGE5 s68.10
         embedding_init_permute: bool = False,            # STAGE5 s68.11: permute the SVD-initialised embedding rows across junctions (seeded by scvi.settings.seed)
+        splicing_refine_steps: int = 0,                  # STAGE5 s87.A3: first-order semi-amortised refinement of the splicing posterior mean (0 = off)
+        splicing_refine_lr: float = 0.05,                # STAGE5 s87.A3: Adam step size of that refinement
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -549,6 +551,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             event_dropout=event_dropout,
             decoder_depth_covariates=decoder_depth_covariates,
             phi_lr_mult=phi_lr_mult,
+            splicing_refine_steps=splicing_refine_steps,
+            splicing_refine_lr=splicing_refine_lr,
             max_nobs=max_nobs,
 
             # extras

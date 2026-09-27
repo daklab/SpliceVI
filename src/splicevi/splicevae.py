@@ -332,6 +332,8 @@ class SPLICEVAE(BaseModuleClass):
         event_dropout: float = 0.0,                  # STAGE5 s68.9: fraction of each cell's observed events hidden from the ENCODER per minibatch (decoder still scores them)
         decoder_depth_covariates: bool = False,      # STAGE5 s68.4a: [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
         phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
+        splicing_refine_steps: int = 0,              # STAGE5 s87.A3: K Adam steps on the splicing posterior mean (DM of the encoder-visible events + prior), first-order / straight-through; 0 = off
+        splicing_refine_lr: float = 0.05,            # STAGE5 s87.A3
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -352,6 +354,8 @@ class SPLICEVAE(BaseModuleClass):
         self.event_dropout = float(event_dropout)
         self.decoder_depth_covariates = bool(decoder_depth_covariates)
         self.phi_lr_mult = float(phi_lr_mult)
+        self.splicing_refine_steps = int(splicing_refine_steps)
+        self.splicing_refine_lr = float(splicing_refine_lr)
         if self.decoder_depth_covariates:
             self.register_buffer("depth_cov_mean", torch.zeros(3)); self.register_buffer("depth_cov_std", torch.ones(3))
         self.precision_weight = precision_weight
@@ -678,10 +682,12 @@ class SPLICEVAE(BaseModuleClass):
             "size_factor": size_factor,
             # STAGE5 section 31: ATSE totals reach the encoder only as pooling weights (pool_mode="precision")
             "atse_counts": tensors.get("atse_counts_key", None),
+            # STAGE5 s87.A3: junction counts reach inference only for the splicing-mean refinement (splicing_refine_steps > 0)
+            "junc_counts": tensors.get("junc_counts_key", None),
         }
 
     @auto_move_data
-    def inference(self, x, mask, batch_index, cont_covs, cat_covs, label, cell_idx, size_factor, n_samples=1, atse_counts=None) -> dict[str, torch.Tensor]:
+    def inference(self, x, mask, batch_index, cont_covs, cat_covs, label, cell_idx, size_factor, n_samples=1, atse_counts=None, junc_counts=None) -> dict[str, torch.Tensor]:
         """Run the inference network.
 
         Splits input x into gene expression and splicing parts, encodes each branch, and mixes their latent representations.
@@ -782,7 +788,14 @@ class SPLICEVAE(BaseModuleClass):
             qzm_spl = mu
             qzv_spl = var
 
-
+        # STAGE5 s87.A3: first-order semi-amortised refinement of the splicing posterior mean (off by default)
+        if getattr(self, "splicing_refine_steps", 0) > 0 and mask_enc is not None:
+            if atse_counts is None or junc_counts is None:
+                raise ValueError("splicing_refine_steps > 0 needs atse_counts_key and junc_counts_key in the minibatch")
+            z_ref = self._refine_splicing_mean(qzm_spl, x_spl_enc, mask_enc, atse_counts, junc_counts, batch_index, cont_covs, cat_covs, depth_cov)
+            shift = (z_ref - qzm_spl).detach()
+            qzm_spl = qzm_spl + shift          # value = refined mean; gradient to the encoder = identity (straight-through)
+            z_spl = z_spl + shift
 
         # L encoder
         if self.use_size_factor_key:
@@ -913,6 +926,44 @@ class SPLICEVAE(BaseModuleClass):
             "enc_hidden": enc_hidden,     # s68.9 (None unless event_dropout > 0 in training)
             "depth_cov": depth_cov,       # s68.4a (None unless decoder_depth_covariates)
         }
+
+    def _decode_splicing_p(self, z, batch_index, cont_covs, cat_covs, depth_cov):
+        """STAGE5 s87.A3: the splicing path of generative() for a given latent (non-concatenate mixing), returning p."""
+        if self.modality_weights == "concatenate":
+            raise NotImplementedError("splicing_refine_steps is implemented for mixed (non-concatenate) latents only")
+        categorical_input = torch.split(cat_covs, 1, dim=1) if cat_covs is not None else ()
+        dec_in = torch.cat([z, depth_cov], dim=-1) if depth_cov is not None else z
+        if self.splicing_decoder_architecture == "vanilla":
+            dec_in = torch.cat([dec_in, cont_covs], dim=-1) if cont_covs is not None else dec_in
+            p_s = self.z_decoder_splicing(dec_in, batch_index, *categorical_input)
+        else:
+            p_s = torch.sigmoid(self.z_decoder_splicing(dec_in, batch_index, *categorical_input, cont=cont_covs))
+        if self.splicing_loss_type == "dirichlet_multinomial":
+            p_c = p_s.clamp(1e-6, 1 - 1e-6)
+            logits = torch.log(p_c) - torch.log1p(-p_c)
+            p_s = torch.exp(subtract_group_logsumexp(self.junc2atse, logits, group_logsumexp(self.junc2atse, logits)))
+        return p_s
+
+    def _refine_splicing_mean(self, mu, x_spl, mask, atse_counts, junc_counts, batch_index, cont_covs, cat_covs, depth_cov):
+        """STAGE5 s87.A3: K Adam steps (per cell, lr splicing_refine_lr) on z from mu, minimising the splicing DM negative log-likelihood of the
+        observed (mask) junctions + 0.5 ||z||^2. phi detached; decoder weights receive no gradient from the refinement. Works under
+        torch.inference_mode (evaluation): inputs are cloned into normal tensors. Returns the refined z (detached)."""
+        K, lr, b1, b2, eps = self.splicing_refine_steps, self.splicing_refine_lr, 0.9, 0.999, 1e-8
+        with torch.inference_mode(False), torch.enable_grad():
+            cl = lambda v: None if v is None else v.detach().clone()
+            m = cl(mask).to(mu.dtype); n = cl(atse_counts).to(mu.dtype) * m; k = cl(junc_counts).to(mu.dtype) * m; xs = cl(x_spl) * m
+            bi, cc, ca, dc = cl(batch_index), cl(cont_covs), cl(cat_covs), cl(depth_cov)
+            phi = self.get_phi().detach().clone(); mb = m.bool()
+            z = cl(mu); mom = torch.zeros_like(z); vel = torch.zeros_like(z)
+            for step in range(1, K + 1):
+                z.requires_grad_(True)
+                nll = self.get_reconstruction_loss_splicing(xs, n, k, mb, self._decode_splicing_p(z, bi, cc, ca, dc), phi).sum() + 0.5 * (z ** 2).sum()
+                g, = torch.autograd.grad(nll, z)
+                with torch.no_grad():
+                    mom = b1 * mom + (1 - b1) * g; vel = b2 * vel + (1 - b2) * g * g
+                    z = z - lr * (mom / (1 - b1 ** step)) / ((vel / (1 - b2 ** step)).sqrt() + eps)
+                z = z.detach()
+        return z
 
     def _get_generative_input(self, tensors, inference_outputs, transform_batch=None):
         """Get the input for the generative model."""
