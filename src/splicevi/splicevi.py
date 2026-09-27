@@ -496,6 +496,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         aux_ratio_weight: float = 0.0,                   # STAGE5 s96(iii)
         distill_weight: float = 0.0,                     # STAGE5 s96(ii)
         free_bits: float = 0.0,                          # STAGE5 s96(iv)
+        distill_only: bool = False,                      # STAGE5 s96(ii) encoder-only
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -582,6 +583,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             aux_ratio_weight=aux_ratio_weight,
             distill_weight=distill_weight,
             free_bits=free_bits,
+            distill_only=distill_only,
             max_nobs=max_nobs,
 
             # extras

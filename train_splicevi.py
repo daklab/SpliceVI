@@ -433,7 +433,7 @@ def main():
         import torch as _torch
         _sd = _torch.load(os.path.join(args.init_from, "model.pt"), map_location="cpu", weights_only=False)["model_state_dict"]
         _missing, _unexpected = model.module.load_state_dict(_sd, strict=False)
-        _missing = [k for k in _missing if not k.startswith("distill_")]
+        _missing = [k for k in _missing if not (k.startswith("distill_") or k.endswith(".pop_psi"))]   # pop_psi: built from the training data for psi_input="centred" (s96(i) warm start)
         assert not _missing and not _unexpected, f"init_from mismatch: missing {_missing[:5]}, unexpected {_unexpected[:5]}"
         print(f"[INIT] weights loaded from {args.init_from} ({len(_sd)} tensors)")
     if args.distill_targets:
@@ -441,6 +441,9 @@ def main():
         assert np.array_equal(_z["obs_names"].astype(str), np.asarray(mdata.obs_names).astype(str)), "distill targets not in training-cell order"
         model.module.set_distill_targets(_z["targets"], _z["valid"] if "valid" in _z.files else None)
         print(f"[DISTILL] {int(_z['targets'].shape[0])} targets from {args.distill_targets}; weight {model.module.distill_weight}")
+    if getattr(model.module, "distill_only", False):   # STAGE5 s96(ii) encoder-only variant: only the splicing encoder is trained
+        for _n, _p in model.module.named_parameters(): _p.requires_grad_(_n.startswith("z_encoder_splicing."))
+        print(f"[DISTILL] distill_only: trainable tensors {sum(p.requires_grad for p in model.module.parameters())} (z_encoder_splicing only)")
 
     print("[TRAIN] Starting training with the following overrides:")
     if train_kwargs:

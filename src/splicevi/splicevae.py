@@ -338,6 +338,7 @@ class SPLICEVAE(BaseModuleClass):
         aux_ratio_weight: float = 0.0,               # STAGE5 s96(iii): weight of an auxiliary DM loss on the encoder-hidden events decoded from z_spl alone (needs event_dropout > 0)
         distill_weight: float = 0.0,                 # STAGE5 s96(ii): weight of ||mu_spl - target||^2 (targets set with set_distill_targets)
         free_bits: float = 0.0,                      # STAGE5 s96(iv): KL floor in nats per latent dimension (minibatch mean); 0 = off
+        distill_only: bool = False,                  # STAGE5 s96(ii) encoder-only: loss = distillation term only (trainer freezes all but the splicing encoder)
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -364,6 +365,7 @@ class SPLICEVAE(BaseModuleClass):
         self.aux_ratio_weight = float(aux_ratio_weight)
         self.distill_weight = float(distill_weight)
         self.free_bits = float(free_bits)
+        self.distill_only = bool(distill_only)
         self.register_buffer("distill_targets", torch.zeros(0), persistent=False)
         self.register_buffer("distill_valid", torch.zeros(0, dtype=torch.bool), persistent=False)
         if self.decoder_depth_covariates:
@@ -1269,6 +1271,9 @@ class SPLICEVAE(BaseModuleClass):
 
         # ───── total negative ELBO ───────────────────────────────────────
         loss = torch.mean(recon_loss + weighted_kl_local + aux_term) + prior_loss
+        if getattr(self, "distill_only", False):   # s96(ii): encoder-only distillation; ELBO pieces still logged, not optimised
+            ci_ = tensors[REGISTRY_KEYS.INDICES_KEY].long().ravel(); v_ = self.distill_valid[ci_].to(recon_loss.dtype)
+            loss = (((inference_outputs["qzm_spl"] - self.distill_targets[ci_]) ** 2).sum(1) * v_).sum() / v_.sum().clamp_min(1.0)
 
         # per cell tensors 
         recon_losses = {
