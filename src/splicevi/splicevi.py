@@ -85,9 +85,13 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
         gradient_clipping_max_norm: float = 5.0,
         cross_gate_mode: str = "hard",
         disable_cross_gate: bool = False,
+        adversary_input: str = "z",   # STAGE5 s92: "z" (joint latent, original) | "expression" (expression posterior mean only)
         **kwargs,
     ):
         super().__init__(module=module, **kwargs)
+        if adversary_input not in ("z", "expression"):
+            raise ValueError("adversary_input must be 'z' or 'expression'")
+        self.adversary_input = adversary_input
         self.cross_gate_mode = cross_gate_mode  # "hard" or "soft"
         # If True, the cross gate is pinned open (1.0) for the entire run, including during KL
         # warmup. For non-concatenate modality_weights, this disables the random per-batch
@@ -252,7 +256,7 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
             opt1, opt2 = opts
 
         inference_outputs, _, scvi_loss = self.forward(batch, loss_kwargs=self.loss_kwargs)
-        z = inference_outputs["z"]
+        z = inference_outputs["z"] if getattr(self, "adversary_input", "z") == "z" else inference_outputs["qzm_expr"]   # s92
         loss = scvi_loss.loss
         # fool classifier if doing adversarial training
         if kappa > 0 and self.adversarial_classifier is not False:
@@ -488,6 +492,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         embedding_init_permute: bool = False,            # STAGE5 s68.11: permute the SVD-initialised embedding rows across junctions (seeded by scvi.settings.seed)
         splicing_refine_steps: int = 0,                  # STAGE5 s87.A3: first-order semi-amortised refinement of the splicing posterior mean (0 = off)
         splicing_refine_lr: float = 0.05,                # STAGE5 s87.A3: Adam step size of that refinement
+        splicing_decoder_batch: bool = True,             # STAGE5 s92: False = no batch terms in the splicing decoder
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -570,6 +575,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             phi_lr_mult=phi_lr_mult,
             splicing_refine_steps=splicing_refine_steps,
             splicing_refine_lr=splicing_refine_lr,
+            splicing_decoder_batch=splicing_decoder_batch,
             max_nobs=max_nobs,
 
             # extras
@@ -770,6 +776,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         gradient_clipping_max_norm: float = 5.0,
         disable_cross_gate: bool = False,
         early_stopping_monitor: str = "reconstruction_loss_validation",   # STAGE5 s89: any logged validation metric (default unchanged)
+        adversary_input: str = "z",    # STAGE5 s92: input of the adversarial batch classifier: "z" (original) | "expression"
         keep_best: str = "",           # STAGE5 s89: comma-separated validation metrics whose best (min) in-memory state is kept
         restore_best: str = "",        # STAGE5 s89: one of keep_best; its best state is loaded into the model at the end of training
         datasplitter_kwargs: dict | None = None,
@@ -855,6 +862,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             "gradient_clipping": gradient_clipping,
             "gradient_clipping_max_norm": gradient_clipping_max_norm,
             "disable_cross_gate": disable_cross_gate,    
+            "adversary_input": adversary_input,
         }
         if plan_kwargs is not None:
             plan_kwargs.update(update_dict)

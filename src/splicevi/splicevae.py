@@ -334,6 +334,7 @@ class SPLICEVAE(BaseModuleClass):
         phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
         splicing_refine_steps: int = 0,              # STAGE5 s87.A3: K Adam steps on the splicing posterior mean (DM of the encoder-visible events + prior), first-order / straight-through; 0 = off
         splicing_refine_lr: float = 0.05,            # STAGE5 s87.A3
+        splicing_decoder_batch: bool = True,         # STAGE5 s92: False = the splicing decoder gets no batch terms (expression decoder unchanged)
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -356,6 +357,7 @@ class SPLICEVAE(BaseModuleClass):
         self.phi_lr_mult = float(phi_lr_mult)
         self.splicing_refine_steps = int(splicing_refine_steps)
         self.splicing_refine_lr = float(splicing_refine_lr)
+        self.splicing_decoder_batch = bool(splicing_decoder_batch)
         if self.decoder_depth_covariates:
             self.register_buffer("depth_cov_mean", torch.zeros(3)); self.register_buffer("depth_cov_std", torch.ones(3))
         self.precision_weight = precision_weight
@@ -538,11 +540,12 @@ class SPLICEVAE(BaseModuleClass):
             else:
                 self.z_encoder_splicing.z_transformation = lambda x: x
 
+        spl_cat_list = cat_list if self.splicing_decoder_batch else list(cat_list[1:])   # s92: drop the batch (first) category
         if splicing_decoder_architecture == "vanilla":
             self.z_decoder_splicing = DecoderSplice(
                 n_input=n_input_decoder,
                 n_output=n_input_junctions,
-                n_cat_list=cat_list,
+                n_cat_list=spl_cat_list,
                 n_layers=n_layers_decoder,
                 n_hidden=self.n_hidden,
                 dropout_rate=dropout_rate,
@@ -557,7 +560,7 @@ class SPLICEVAE(BaseModuleClass):
             self.z_decoder_splicing = LinearDecoder(
                 latent_dim=input_linear_splicing_decoder,
                 output_dim=n_input_junctions,
-                n_cat_list=cat_list,
+                n_cat_list=spl_cat_list,
                 n_cont=n_continuous_cov,
             )
 
@@ -933,11 +936,12 @@ class SPLICEVAE(BaseModuleClass):
             raise NotImplementedError("splicing_refine_steps is implemented for mixed (non-concatenate) latents only")
         categorical_input = torch.split(cat_covs, 1, dim=1) if cat_covs is not None else ()
         dec_in = torch.cat([z, depth_cov], dim=-1) if depth_cov is not None else z
+        spl_cats = (batch_index, *categorical_input) if getattr(self, "splicing_decoder_batch", True) else tuple(categorical_input)   # s92
         if self.splicing_decoder_architecture == "vanilla":
             dec_in = torch.cat([dec_in, cont_covs], dim=-1) if cont_covs is not None else dec_in
-            p_s = self.z_decoder_splicing(dec_in, batch_index, *categorical_input)
+            p_s = self.z_decoder_splicing(dec_in, *spl_cats)
         else:
-            p_s = torch.sigmoid(self.z_decoder_splicing(dec_in, batch_index, *categorical_input, cont=cont_covs))
+            p_s = torch.sigmoid(self.z_decoder_splicing(dec_in, *spl_cats, cont=cont_covs))
         if self.splicing_loss_type == "dirichlet_multinomial":
             p_c = p_s.clamp(1e-6, 1 - 1e-6)
             logits = torch.log(p_c) - torch.log1p(-p_c)
@@ -1064,10 +1068,11 @@ class SPLICEVAE(BaseModuleClass):
         #     print(f"splicing input {decoder_input_spl}")
 
         # Splicing
+        spl_cats = (batch_index, *categorical_input) if getattr(self, "splicing_decoder_batch", True) else tuple(categorical_input)   # s92
         if self.splicing_decoder_architecture == "vanilla":
-            p_s = self.z_decoder_splicing(decoder_input_spl, batch_index, *categorical_input)
+            p_s = self.z_decoder_splicing(decoder_input_spl, *spl_cats)
         else:
-            p_s_logits = self.z_decoder_splicing(dec_in_spl, batch_index, *categorical_input, cont=cont_covs)
+            p_s_logits = self.z_decoder_splicing(dec_in_spl, *spl_cats, cont=cont_covs)
             p_s = torch.sigmoid(p_s_logits)
 
         # For DM, group-softmax p_s so that junctions within each ATSE sum to 1.
