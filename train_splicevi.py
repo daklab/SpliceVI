@@ -160,6 +160,8 @@ def build_argparser(init_defaults, train_defaults):
                         help="Log R_s / R_e / cosines every --gradient_budget_every epochs to <model_dir>/gradient_budget_train.tsv.")
     parser.add_argument("--gradient_budget_every", type=int, default=50)
     parser.add_argument("--gradient_budget_seed", type=int, default=20260924)
+    parser.add_argument("--init_from", type=str, default=None, help="STAGE5 s96(ii): load weights from this model dir before training (same architecture)")
+    parser.add_argument("--distill_targets", type=str, default=None, help="STAGE5 s96(ii): npz with targets (n_train x n_latent), valid, obs_names")
 
     # Optional: experiment-tracking leaderboard hook (see SpliceVI-utils/script_outputs/experiments/)
     parser.add_argument(
@@ -425,6 +427,20 @@ def main():
         train_kwargs["callbacks"] = [GradientBudgetCallback(model, mdata, os.path.join(args.model_dir, "gradient_budget_train.tsv"),
                                                             every=args.gradient_budget_every, seed=args.gradient_budget_seed)]
         print(f"[GRADIENT_BUDGET] logging every {args.gradient_budget_every} epochs on 20 fixed batches of 512 (seed {args.gradient_budget_seed})")
+
+    # STAGE5 s96(ii): optional warm start and distillation targets
+    if args.init_from:
+        import torch as _torch
+        _sd = _torch.load(os.path.join(args.init_from, "model.pt"), map_location="cpu", weights_only=False)["model_state_dict"]
+        _missing, _unexpected = model.module.load_state_dict(_sd, strict=False)
+        _missing = [k for k in _missing if not k.startswith("distill_")]
+        assert not _missing and not _unexpected, f"init_from mismatch: missing {_missing[:5]}, unexpected {_unexpected[:5]}"
+        print(f"[INIT] weights loaded from {args.init_from} ({len(_sd)} tensors)")
+    if args.distill_targets:
+        _z = np.load(args.distill_targets, allow_pickle=True)
+        assert np.array_equal(_z["obs_names"].astype(str), np.asarray(mdata.obs_names).astype(str)), "distill targets not in training-cell order"
+        model.module.set_distill_targets(_z["targets"], _z["valid"] if "valid" in _z.files else None)
+        print(f"[DISTILL] {int(_z['targets'].shape[0])} targets from {args.distill_targets}; weight {model.module.distill_weight}")
 
     print("[TRAIN] Starting training with the following overrides:")
     if train_kwargs:

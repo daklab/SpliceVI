@@ -493,6 +493,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         splicing_refine_steps: int = 0,                  # STAGE5 s87.A3: first-order semi-amortised refinement of the splicing posterior mean (0 = off)
         splicing_refine_lr: float = 0.05,                # STAGE5 s87.A3: Adam step size of that refinement
         splicing_decoder_batch: bool = True,             # STAGE5 s92: False = no batch terms in the splicing decoder
+        aux_ratio_weight: float = 0.0,                   # STAGE5 s96(iii)
+        distill_weight: float = 0.0,                     # STAGE5 s96(ii)
+        free_bits: float = 0.0,                          # STAGE5 s96(iv)
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -576,6 +579,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             splicing_refine_steps=splicing_refine_steps,
             splicing_refine_lr=splicing_refine_lr,
             splicing_decoder_batch=splicing_decoder_batch,
+            aux_ratio_weight=aux_ratio_weight,
+            distill_weight=distill_weight,
+            free_bits=free_bits,
             max_nobs=max_nobs,
 
             # extras

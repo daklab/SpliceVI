@@ -335,6 +335,9 @@ class SPLICEVAE(BaseModuleClass):
         splicing_refine_steps: int = 0,              # STAGE5 s87.A3: K Adam steps on the splicing posterior mean (DM of the encoder-visible events + prior), first-order / straight-through; 0 = off
         splicing_refine_lr: float = 0.05,            # STAGE5 s87.A3
         splicing_decoder_batch: bool = True,         # STAGE5 s92: False = the splicing decoder gets no batch terms (expression decoder unchanged)
+        aux_ratio_weight: float = 0.0,               # STAGE5 s96(iii): weight of an auxiliary DM loss on the encoder-hidden events decoded from z_spl alone (needs event_dropout > 0)
+        distill_weight: float = 0.0,                 # STAGE5 s96(ii): weight of ||mu_spl - target||^2 (targets set with set_distill_targets)
+        free_bits: float = 0.0,                      # STAGE5 s96(iv): KL floor in nats per latent dimension (minibatch mean); 0 = off
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -358,6 +361,11 @@ class SPLICEVAE(BaseModuleClass):
         self.splicing_refine_steps = int(splicing_refine_steps)
         self.splicing_refine_lr = float(splicing_refine_lr)
         self.splicing_decoder_batch = bool(splicing_decoder_batch)
+        self.aux_ratio_weight = float(aux_ratio_weight)
+        self.distill_weight = float(distill_weight)
+        self.free_bits = float(free_bits)
+        self.register_buffer("distill_targets", torch.zeros(0), persistent=False)
+        self.register_buffer("distill_valid", torch.zeros(0, dtype=torch.bool), persistent=False)
         if self.decoder_depth_covariates:
             self.register_buffer("depth_cov_mean", torch.zeros(3)); self.register_buffer("depth_cov_std", torch.ones(3))
         self.precision_weight = precision_weight
@@ -1216,7 +1224,11 @@ class SPLICEVAE(BaseModuleClass):
         # Compute KL divergence between approximate posterior and prior
         qz_m = inference_outputs["qz_m"]
         qz_v = inference_outputs["qz_v"]
-        kl_div_z = kld(Normal(qz_m, torch.sqrt(qz_v)), Normal(0, 1)).sum(dim=1)
+        kl_d = kld(Normal(qz_m, torch.sqrt(qz_v)), Normal(0, 1))
+        if getattr(self, "free_bits", 0.0) > 0:   # STAGE5 s96(iv): free bits: dimensions whose minibatch-mean KL is below the floor get no KL gradient
+            below = kl_d.mean(0, keepdim=True) < self.free_bits
+            kl_d = torch.where(below, kl_d.detach(), kl_d)
+        kl_div_z = kl_d.sum(dim=1)
 
         # Compute the KL divergence for paired data, passing in the precomputed masks
         kl_div_paired = self._compute_mod_penalty(
@@ -1243,8 +1255,20 @@ class SPLICEVAE(BaseModuleClass):
         prior_loss = self.phi_prior_loss(x.size(0))
         
 
+        # ───── STAGE5 s96: auxiliary terms (off by default) ───────────────
+        aux_term = torch.zeros_like(recon_loss); aux_metrics = {}
+        enc_hidden_ = inference_outputs.get("enc_hidden", None)
+        if getattr(self, "aux_ratio_weight", 0.0) > 0 and enc_hidden_ is not None and total_counts is not None:
+            p_aux = self._decode_splicing_p(inference_outputs["qzm_spl"], tensors[REGISTRY_KEYS.BATCH_KEY], tensors.get(REGISTRY_KEYS.CONT_COVS_KEY), tensors.get(REGISTRY_KEYS.CAT_COVS_KEY), inference_outputs.get("depth_cov"))
+            rl_aux = self.get_reconstruction_loss_splicing(x_spl, total_counts * enc_hidden_, junction_counts, enc_hidden_.bool(), p_aux, generative_outputs["phi"])
+            aux_term = aux_term + self.aux_ratio_weight * rl_aux; aux_metrics["aux_ratio_loss"] = rl_aux.mean().detach()
+        if getattr(self, "distill_weight", 0.0) > 0 and self.distill_targets.numel() > 0:
+            ci = tensors[REGISTRY_KEYS.INDICES_KEY].long().ravel(); valid = self.distill_valid[ci].to(recon_loss.dtype)
+            d2 = ((inference_outputs["qzm_spl"] - self.distill_targets[ci]) ** 2).sum(1) * valid
+            aux_term = aux_term + self.distill_weight * d2; aux_metrics["distill_loss"] = (d2.sum() / valid.sum().clamp_min(1.0)).detach()
+
         # ───── total negative ELBO ───────────────────────────────────────
-        loss = torch.mean(recon_loss + weighted_kl_local) + prior_loss
+        loss = torch.mean(recon_loss + weighted_kl_local + aux_term) + prior_loss
 
         # per cell tensors 
         recon_losses = {
@@ -1275,7 +1299,14 @@ class SPLICEVAE(BaseModuleClass):
                 rl_hidden = self.get_reconstruction_loss_splicing(x_spl, total_counts * enc_hidden, junction_counts, enc_hidden, generative_outputs["p"], generative_outputs["phi"])
                 rl_visible = self.get_reconstruction_loss_splicing(x_spl, total_counts * vis, junction_counts, vis, generative_outputs["p"], generative_outputs["phi"])
                 extra = {"rl_spl_hidden_events": rl_hidden.mean(), "rl_spl_visible_events": rl_visible.mean(), "frac_junctions_hidden": (enc_hidden.sum() / psi_mask.sum().clamp_min(1.0)) if psi_mask is not None else enc_hidden.mean()}
+        extra = {**extra, **aux_metrics}
         return LossOutput(loss=loss, reconstruction_loss=recon_losses, kl_local=kl_local, extra_metrics=extra)
+
+    def set_distill_targets(self, targets, valid=None):
+        """STAGE5 s96(ii): per-training-cell targets for mu_spl (rows = training AnnData order, i.e. the minibatch indices)."""
+        t = torch.as_tensor(np.asarray(targets, dtype=np.float32), device=self.distill_targets.device)
+        v = torch.ones(t.shape[0], dtype=torch.bool) if valid is None else torch.as_tensor(np.asarray(valid, dtype=bool))
+        self.distill_targets = t; self.distill_valid = v.to(t.device)
 
     def get_reconstruction_loss_expression(self, x, px_rate, px_r, px_dropout):
         """Compute the reconstruction loss for gene expression data."""
