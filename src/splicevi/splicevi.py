@@ -278,6 +278,23 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
                 torch.nn.utils.clip_grad_norm_(self.module.parameters(),  max_norm=self.gradient_clipping_max_norm)
             opt2.step()
 
+class _BestStateTracker(__import__("lightning").pytorch.callbacks.Callback):
+    """STAGE5 s89: keeps a CPU copy of the module state at the minimum of each monitored validation metric (read in on_validation_end,
+    after the training plan has logged the epoch's validation metrics, as EarlyStopping does)."""
+    def __init__(self, module, monitors):
+        super().__init__(); self.module = module; self.monitors = monitors
+        self.values = {m: float("inf") for m in monitors}; self.epochs = {m: -1 for m in monitors}; self.states = {}; self.value_log = {m: [] for m in monitors}
+    def on_validation_end(self, trainer, pl_module):
+        for m in self.monitors:
+            v = trainer.callback_metrics.get(m)
+            if v is None:
+                raise KeyError(f"_BestStateTracker: metric {m!r} not logged; available: {sorted(trainer.callback_metrics)}")
+            v = float(v); self.value_log[m].append((int(trainer.current_epoch), v))
+            if v < self.values[m]:
+                self.values[m] = v; self.epochs[m] = int(trainer.current_epoch)
+                self.states[m] = {k: t.detach().to("cpu", copy=True) for k, t in self.module.state_dict().items()}
+
+
 class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin):
     """Integration of gene expression and alternative splicing signals.
 
@@ -752,6 +769,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
         disable_cross_gate: bool = False,
+        early_stopping_monitor: str = "reconstruction_loss_validation",   # STAGE5 s89: any logged validation metric (default unchanged)
+        keep_best: str = "",           # STAGE5 s89: comma-separated validation metrics whose best (min) in-memory state is kept
+        restore_best: str = "",        # STAGE5 s89: one of keep_best; its best state is loaded into the model at the end of training
         datasplitter_kwargs: dict | None = None,
         plan_kwargs: dict | None = None,
         **kwargs,
@@ -853,6 +873,13 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             **datasplitter_kwargs,
         )
         training_plan = self._training_plan_cls(self.module, **plan_kwargs)
+        tracker = None
+        monitors = [m.strip() for m in keep_best.split(",") if m.strip()]
+        if restore_best and restore_best not in monitors:
+            raise ValueError(f"restore_best={restore_best!r} must be one of keep_best={monitors}")
+        if monitors:   # STAGE5 s89
+            tracker = _BestStateTracker(self.module, monitors)
+            kwargs["callbacks"] = list(kwargs.get("callbacks", []) or []) + [tracker]
         runner = self._train_runner_cls(
             self,
             training_plan=training_plan,
@@ -862,12 +889,20 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             devices=devices,
             early_stopping=early_stopping,
             check_val_every_n_epoch=check_val_every_n_epoch,
-            early_stopping_monitor="reconstruction_loss_validation",
+            early_stopping_monitor=early_stopping_monitor,
             early_stopping_warmup_epochs= n_epochs_kl_warmup,
             early_stopping_patience=early_stopping_patience,
             **kwargs,
         )
-        return runner()
+        out = runner()
+        if tracker is not None:
+            self.best_states_ = tracker.states; self.best_epochs_ = tracker.epochs; self.best_values_ = tracker.values; self.best_log_ = tracker.value_log
+            self.stop_epoch_ = int(runner.trainer.current_epoch)
+            print(f"[BEST] stop epoch {self.stop_epoch_}; best epochs {self.best_epochs_}; best values {self.best_values_}", flush=True)
+            if restore_best:
+                self.module.load_state_dict(tracker.states[restore_best]); self.restored_best_ = restore_best
+                print(f"[BEST] restored the best '{restore_best}' state (epoch {tracker.epochs[restore_best]})", flush=True)
+        return out
 
     @torch.inference_mode()
     def get_library_size_factors(

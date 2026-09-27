@@ -443,6 +443,18 @@ def main():
     # ------------------------------
     print(f"[SAVE] Saving trained model to: {args.model_dir}")
     model.save(args.model_dir, overwrite=True)
+    # STAGE5 s89: the best states kept by keep_best (other than the one restored) are saved as sibling model dirs <model_dir>__best_<tag>
+    if getattr(model, "best_states_", None):
+        import json as _json
+        _restored = getattr(model, "restored_best_", None); _cur = {k: v.detach().cpu().clone() for k, v in model.module.state_dict().items()}
+        for _m, _sd in model.best_states_.items():
+            if _m == _restored: continue
+            _tag = _m.replace("reconstruction_loss_", "").replace("_validation", "")
+            model.module.load_state_dict(_sd); _d = os.path.normpath(args.model_dir) + f"__best_{_tag}"
+            print(f"[SAVE] best '{_m}' state (epoch {model.best_epochs_[_m]}) -> {_d}"); model.save(_d, overwrite=True)
+        model.module.load_state_dict(_cur)
+        with open(os.path.join(args.model_dir, "best_checkpoints.json"), "w") as _f:
+            _json.dump(dict(stop_epoch=getattr(model, "stop_epoch_", None), restored=_restored, best_epochs=model.best_epochs_, best_values=model.best_values_), _f, indent=1)
     print("[SAVE] Model saved successfully.")
 
     if args.experiment_dir:
