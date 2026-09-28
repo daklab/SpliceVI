@@ -328,7 +328,7 @@ class SPLICEVAE(BaseModuleClass):
         pool_mode: Literal["mean", "sum", "precision"] = "mean",
         precision_weight: Literal["atse_total", "sqrt_atse_total"] = "atse_total",
         stop_gradient_spl_to_expr: bool = False,   # STAGE5 s46: detach the splicing posterior on the expression-decoder path
-        psi_input: Literal["raw", "centred"] = "raw",   # STAGE5 s68.1
+        psi_input: Literal["raw", "centred", "deviation"] = "raw",   # STAGE5 s68.1 / s96(i')
         event_dropout: float = 0.0,                  # STAGE5 s68.9: fraction of each cell's observed events hidden from the ENCODER per minibatch (decoder still scores them)
         decoder_depth_covariates: bool = False,      # STAGE5 s68.4a: [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
         phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
