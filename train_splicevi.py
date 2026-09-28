@@ -432,6 +432,8 @@ def main():
     if args.init_from:
         import torch as _torch
         _sd = _torch.load(os.path.join(args.init_from, "model.pt"), map_location="cpu", weights_only=False)["model_state_dict"]
+        _sd.pop("pyro_param_store", None)   # scvi stores the pyro param store beside the weights; not a module parameter
+        _sd = {k: v for k, v in _sd.items() if k != "pyro_param_store"}   # scvi saves the (empty) pyro param store in the state dict; not a module tensor
         _missing, _unexpected = model.module.load_state_dict(_sd, strict=False)
         _missing = [k for k in _missing if not (k.startswith("distill_") or k.endswith(".pop_psi"))]   # pop_psi: built from the training data for psi_input="centred" (s96(i) warm start)
         assert not _missing and not _unexpected, f"init_from mismatch: missing {_missing[:5]}, unexpected {_unexpected[:5]}"
