@@ -330,6 +330,8 @@ class SPLICEVAE(BaseModuleClass):
         stop_gradient_spl_to_expr: bool = False,   # STAGE5 s46: detach the splicing posterior on the expression-decoder path
         psi_input: Literal["raw", "centred", "deviation"] = "raw",   # STAGE5 s68.1 / s96(i')
         event_dropout: float = 0.0,                  # STAGE5 s68.9: fraction of each cell's observed events hidden from the ENCODER per minibatch (decoder still scores them)
+        splicing_mix_weight: float | None = None,     # STAGE5 96.B: fixed splicing weight in the joint mix (modality_weights='equal' only); None = equal (0.5)
+        n_splicing_private: int = 0,                  # STAGE5 96.A: last K latent dims taken from the splicing posterior only, hidden from the expression decoder
         decoder_depth_covariates: bool = False,      # STAGE5 s68.4a: [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
         phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
         splicing_refine_steps: int = 0,              # STAGE5 s87.A3: K Adam steps on the splicing posterior mean (DM of the encoder-visible events + prior), first-order / straight-through; 0 = off
@@ -586,6 +588,9 @@ class SPLICEVAE(BaseModuleClass):
         max_n_modalities = 2
         if modality_weights == "equal":
             self.register_buffer("mod_weights", torch.ones(max_n_modalities))
+            if splicing_mix_weight is not None:   # STAGE5 96.B: masked_softmax([log(1-w), log(w)]) = [1-w, w]; variances follow variance_mixing (squared: w^2)
+                w = float(splicing_mix_weight); assert 0.0 < w < 1.0, "splicing_mix_weight must be in (0, 1)"
+                self.mod_weights.copy_(torch.tensor([np.log(1.0 - w), np.log(w)], dtype=self.mod_weights.dtype))
         elif modality_weights == "universal":
             self.mod_weights = torch.nn.Parameter(torch.ones(max_n_modalities))
         elif modality_weights == "per_dimension_weighted_average":
@@ -596,6 +601,12 @@ class SPLICEVAE(BaseModuleClass):
             self.register_buffer("mod_weights", torch.ones(max_n_modalities))  # unused but keeps _check_adata_modality_weights happy
         else:
             self.mod_weights = torch.nn.Parameter(torch.ones(n_obs, max_n_modalities))
+        if splicing_mix_weight is not None and modality_weights != "equal":
+            raise ValueError("splicing_mix_weight requires modality_weights='equal'")
+        self.splicing_mix_weight = splicing_mix_weight
+        self.n_splicing_private = int(n_splicing_private)
+        if self.n_splicing_private:
+            assert modality_weights != "concatenate" and 0 < self.n_splicing_private < self.encoder_latent_dim, "n_splicing_private needs a mixed latent and K < latent dim"
         
         # gate that controls how much of the "other" half a decoder can see (0=off, 1=on)
         self.register_buffer("cross_gate", torch.tensor(0.0))  # start closed during warmup
@@ -894,6 +905,11 @@ class SPLICEVAE(BaseModuleClass):
         qz_m_sg = qz_v_sg = None
         if self.stop_gradient_spl_to_expr:
             qz_m_sg, qz_v_sg = _mix(qzm_expr, qzv_expr, qzm_spl.detach(), qzv_spl.detach())
+        if getattr(self, "n_splicing_private", 0):   # STAGE5 96.A: private dims come from the splicing posterior only (also during warmup)
+            K = self.n_splicing_private
+            qz_m = torch.cat([qz_m[:, :-K], qzm_spl[:, -K:]], dim=1); qz_v = torch.cat([qz_v[:, :-K], qzv_spl[:, -K:]], dim=1)
+            if qz_m_sg is not None:
+                qz_m_sg = torch.cat([qz_m_sg[:, :-K], qzm_spl[:, -K:].detach()], dim=1); qz_v_sg = torch.cat([qz_v_sg[:, :-K], qzv_spl[:, -K:].detach()], dim=1)
 
         # print(
         #     "After mix:",
@@ -1033,6 +1049,9 @@ class SPLICEVAE(BaseModuleClass):
         # STAGE5 s46: with stop_gradient_spl_to_expr the expression decoder reads the same sample with the
         # splicing posterior detached; the splicing decoder always reads the full latent.
         latent_expr = z_expr_path if (z_expr_path is not None and not use_z_mean) else latent
+        if getattr(self, "n_splicing_private", 0):   # STAGE5 96.A: the expression decoder never sees the splicing-private dims
+            keep = torch.ones(latent_expr.shape[-1], device=latent_expr.device, dtype=latent_expr.dtype); keep[-self.n_splicing_private:] = 0
+            latent_expr = latent_expr * keep
 
         # split halves only if you’re concatenating
         def _attach_cont(rep):
@@ -1501,6 +1520,9 @@ class SPLICEVAE(BaseModuleClass):
         """
         # return torch.tensor(0.0, device=next(self.parameters()).device)
         mask = torch.logical_and(mask1, mask2)
+        if getattr(self, "n_splicing_private", 0):   # STAGE5 96.A: align the shared dims only
+            K = self.n_splicing_private
+            mod_params_expr = (mod_params_expr[0][:, :-K], mod_params_expr[1][:, :-K]); mod_params_spl = (mod_params_spl[0][:, :-K], mod_params_spl[1][:, :-K])
         if self.modality_weights == "concatenate":
             return torch.tensor(0.0, device=next(self.parameters()).device)
         
