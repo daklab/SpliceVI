@@ -321,6 +321,7 @@ class SPLICEVAE(BaseModuleClass):
         h_hidden_dim: int = 64,
         encoder_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum"] = "mean",
+        decoder_depth_covariates: bool = False,      # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders); STAGE5 s68.4a
         max_nobs: int = -1,
 
         # --- Modality mixing ---
@@ -364,6 +365,9 @@ class SPLICEVAE(BaseModuleClass):
         self.encode_covariates = encode_covariates
         self.deeply_inject_covariates = deeply_inject_covariates
         self.use_size_factor_key = use_size_factor_key
+        self.decoder_depth_covariates = bool(decoder_depth_covariates)
+        if self.decoder_depth_covariates:   # training-set mean / std of the three covariates, set by SPLICEVI.init_depth_covariate_stats_from_adata
+            self.register_buffer("depth_cov_mean", torch.zeros(3)); self.register_buffer("depth_cov_std", torch.ones(3))
 
         # New splicing parameters
         self.splicing_loss_type = splicing_loss_type
@@ -428,7 +432,7 @@ class SPLICEVAE(BaseModuleClass):
             deep_inject_covariates=deeply_inject_covariates,
         )
 
-        n_input_decoder = self.n_latent + self.n_continuous_cov
+        n_input_decoder = self.n_latent + self.n_continuous_cov + (3 if self.decoder_depth_covariates else 0)   # s68.4a
 
         if expression_architecture == "vanilla":
             self.z_decoder_expression = DecoderSCVI(
@@ -519,6 +523,8 @@ class SPLICEVAE(BaseModuleClass):
                 deep_inject_covariates=deeply_inject_covariates,
             )
         else:
+            if self.decoder_depth_covariates:
+                raise ValueError("decoder_depth_covariates is implemented for the vanilla splicing decoder only")
             input_linear_splicing_decoder = self.n_latent
             self.z_decoder_splicing = LinearDecoder(
                 latent_dim=input_linear_splicing_decoder,
@@ -648,6 +654,13 @@ class SPLICEVAE(BaseModuleClass):
         x_spl = x[:, self.n_input_genes : (self.n_input_genes + self.n_input_junctions)]
         mask_expr = x_expr.sum(dim=1) > 0
         mask_spl = self._splicing_cell_mask(x_spl, mask)
+
+        # s68.4a: per-cell depth/detection covariates for the decoders (standardised with training constants)
+        depth_cov = None
+        if self.decoder_depth_covariates:
+            lib = size_factor[:, 0] if size_factor is not None else x_expr.sum(dim=1)
+            raw_cov = torch.stack([torch.log1p((x_expr > 0).sum(dim=1).to(x_expr.dtype)), torch.log1p(mask.sum(dim=1).to(x_expr.dtype)) if mask is not None else torch.zeros_like(lib), torch.log1p(lib.to(x_expr.dtype))], dim=1)
+            depth_cov = (raw_cov - self.depth_cov_mean) / self.depth_cov_std
 
         if cont_covs is not None and self.encode_covariates:
             encoder_input_expr = torch.cat((x_expr, cont_covs), dim=-1)
@@ -826,6 +839,7 @@ class SPLICEVAE(BaseModuleClass):
             "qzv_spl": qzv_spl,
             "libsize_expr": libsize_expr,
             "x": x,
+            "depth_cov": depth_cov,       # s68.4a (None unless decoder_depth_covariates)
         }
 
     def _get_generative_input(self, tensors, inference_outputs, transform_batch=None):
@@ -854,11 +868,12 @@ class SPLICEVAE(BaseModuleClass):
             "cat_covs": cat_covs,
             "libsize_expr": libsize_expr,
             "label": label,
+            "depth_cov": inference_outputs.get("depth_cov", None),
         }
         return input_dict
 
     @auto_move_data
-    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None):
+    def generative(self, z, qz_m, batch_index, cont_covs=None, cat_covs=None, libsize_expr=None, use_z_mean=False, label: torch.Tensor = None, depth_cov=None):
         """Run the generative model to decode gene expression and splicing.
 
         Decodes the latent representation into parameters for gene expression reconstruction
@@ -907,6 +922,10 @@ class SPLICEVAE(BaseModuleClass):
             dec_in_expr = latent
             dec_in_spl  = latent
 
+        if depth_cov is not None:   # s68.4a: decoders (only) see the depth covariates
+            def _attach_depth(rep):
+                return torch.cat([rep, depth_cov.unsqueeze(0).expand(rep.size(0), -1, -1)], dim=-1) if rep.dim() != depth_cov.dim() else torch.cat([rep, depth_cov], dim=-1)
+            dec_in_expr = _attach_depth(dec_in_expr); dec_in_spl = _attach_depth(dec_in_spl)
         decoder_input_expr = _attach_cont(dec_in_expr)
         # NOTE: partial splicing decoder expects cont covs via arg, not concatenated
         decoder_input_spl  = _attach_cont(dec_in_spl) if self.splicing_decoder_architecture == "vanilla" else dec_in_spl
