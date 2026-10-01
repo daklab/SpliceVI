@@ -143,6 +143,14 @@ def build_argparser(init_defaults, train_defaults):
         help="How often (in training steps) to log model parameters/gradients.",
     )
 
+    # STAGE5 section 58: seed torch, numpy and Python's random (the warmup coin flip) via scvi.settings.seed
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="If set, scvi.settings.seed = seed before the model is built (seeds torch, numpy, random, lightning).",
+    )
+
     # Optional: experiment-tracking leaderboard hook (see SpliceVI-utils/script_outputs/experiments/)
     parser.add_argument(
         "--experiment_dir",
@@ -306,6 +314,11 @@ def main():
     else:
         print("[MODEL] Using all default init parameters.")
 
+    if args.seed is not None:
+        import scvi
+        scvi.settings.seed = int(args.seed)
+        print(f"[SEED] scvi.settings.seed = {args.seed} (torch, numpy, python random, lightning)")
+
     model = SPLICEVI(
         mdata,
         n_genes=n_genes,
@@ -332,6 +345,7 @@ def main():
         {
             "train_mdata_path": args.train_mdata_path,
             "model_dir": args.model_dir,
+            "seed": args.seed,
         }
     )
 

@@ -449,7 +449,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
-        phi_init: Literal["log100", "prior"] = "log100",
+        phi_init: Literal["log100", "prior", "constant"] = "log100",
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
@@ -461,6 +461,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         code_dim: int = 16,
         h_hidden_dim: int = 64,
         pool_mode: Literal["mean", "sum"] = "mean",
+        decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
+        decoder_depth_covariates: bool = False,                               # STAGE5 s68.4a: depth/detection covariates into both decoders
         max_nobs: int = -1,
 
         # --- Model-only helpers ---
@@ -535,6 +537,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             code_dim=code_dim,
             h_hidden_dim=h_hidden_dim,
             pool_mode=pool_mode,
+            decoder_depth_covariates=decoder_depth_covariates,
             max_nobs=max_nobs,
 
             # extras
@@ -556,7 +559,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
             f"max_nobs={max_nobs}) | "
-            f"init_from_pca={initialize_embeddings_from_pca}"
+            f"init_from_pca={initialize_embeddings_from_pca}, decoder_intercept_init={decoder_intercept_init}, "
+            f"decoder_depth_covariates={decoder_depth_covariates}"
         )
 
         self.fully_paired = fully_paired
@@ -571,6 +575,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         if self.adata is not None:
             if initialize_embeddings_from_pca and splicing_encoder_architecture == "partial":
                 self.init_feature_embedding_from_adata()
+            if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
+                self.init_decoder_intercept_from_adata()      # STAGE5 s68.6
+            if decoder_depth_covariates:
+                self.init_depth_covariate_stats_from_adata()  # STAGE5 s68.4a
 
             # Only needed for DM splicing likelihood
             if splicing_loss_type == "dirichlet_multinomial":
@@ -611,6 +619,40 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         j2a = self.make_junc2atse(atse_labels)
         self.module.junc2atse = j2a.coalesce().to(self.module.device)
 
+
+    def population_psi_from_adata(self) -> np.ndarray:
+        """Read-weighted population PSI per junction from the registered count layers of the training data:
+        sum over cells of junction counts / sum over cells of the event total (the atse_counts layer repeats the
+        event total on every junction of the event, so its column sum is the event's read total). 0 where no reads."""
+        jc = self.adata_manager.data_registry["junc_counts_key"]; ac = self.adata_manager.data_registry["atse_counts_key"]
+        K = self.adata[jc.mod_key].layers[jc.attr_key]; N = self.adata[ac.mod_key].layers[ac.attr_key]
+        num = np.asarray(K.sum(axis=0)).ravel().astype(np.float64); den = np.asarray(N.sum(axis=0)).ravel().astype(np.float64)
+        return np.divide(num, den, out=np.zeros_like(num), where=den > 0)
+
+    def init_decoder_intercept_from_adata(self) -> None:
+        """STAGE5 s68.6: initialise the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
+        the within-event softmax reproduces the read-weighted population PSI: bias_j = log(clip(p_pop_j, 1e-4, 1)).
+        (generative() maps sigmoid(bias) -> clamp -> logit -> group softmax, i.e. softmax over the event of the bias.)"""
+        print("Initializing the splicing-decoder intercept at log(population PSI)...")
+        p_pop = self.population_psi_from_adata()
+        with torch.no_grad():
+            b = self.module.z_decoder_splicing.ps_output.bias
+            b.copy_(torch.as_tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=b.dtype, device=b.device))
+        print(f"decoder intercept set from population PSI ({len(p_pop)} junctions)")
+
+    def init_depth_covariate_stats_from_adata(self) -> None:
+        """STAGE5 s68.4a: mean/std of [log1p detected genes, log1p observed junctions, log1p library size] over the training cells,
+        stored as buffers so the decoders' covariates are standardised with training constants (same definitions as inference())."""
+        rna_info = self.adata_manager.data_registry[REGISTRY_KEYS.X_KEY]; mk = self.adata_manager.data_registry["psi_observed_mask"]
+        X = self.adata[rna_info.mod_key].layers[rna_info.attr_key] if rna_info.attr_name == "layers" else self.adata[rna_info.mod_key].X
+        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float64)
+        M = self.adata[mk.mod_key].layers[mk.attr_key]; n_junc = np.asarray((M > 0).sum(axis=1)).ravel().astype(np.float64)
+        # size factor is a NumericalJointObsField (top-level mudata obsm, no mod_key): resolve it through the manager
+        lib = np.asarray(self.adata_manager.get_from_registry(REGISTRY_KEYS.SIZE_FACTOR_KEY)).ravel().astype(np.float64) if REGISTRY_KEYS.SIZE_FACTOR_KEY in self.adata_manager.data_registry else np.asarray(X.sum(axis=1)).ravel()
+        cov = np.log1p(np.column_stack([n_genes, n_junc, lib]))
+        with torch.no_grad():
+            self.module.depth_cov_mean.copy_(torch.as_tensor(cov.mean(0), dtype=self.module.depth_cov_mean.dtype)); self.module.depth_cov_std.copy_(torch.as_tensor(cov.std(0) + 1e-6, dtype=self.module.depth_cov_std.dtype))
+        print(f"depth covariate stats set (train): mean {cov.mean(0).round(3)}, std {cov.std(0).round(3)}")
 
     def init_feature_embedding_from_adata(self) -> None:
         print("Initializing feature embeddings...")
