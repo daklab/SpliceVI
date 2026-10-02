@@ -321,7 +321,7 @@ class SPLICEVAE(BaseModuleClass):
         h_hidden_dim: int = 64,
         encoder_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum"] = "mean",
-        psi_input: Literal["raw", "centred", "deviation"] = "raw",   # splicing-encoder input: raw psi, psi - population psi, or deviation (centred, h(0) subtracted, fixed pool divisor)
+        psi_input: Literal["raw", "deviation"] = "raw",   # splicing-encoder input: raw psi, or deviation (psi - population psi, h(0) subtracted, fixed pool divisor)
         decoder_depth_covariates: bool = False,      # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders); STAGE5 s68.4a
         max_nobs: int = -1,
 

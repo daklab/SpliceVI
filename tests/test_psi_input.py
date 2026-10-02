@@ -1,4 +1,4 @@
-"""Unit tests for the splicing-encoder input option psi_input ("raw" default, "centred", "deviation"). Toy dimensions, CPU.
+"""Unit tests for the splicing-encoder input option psi_input ("raw" default, "deviation"). Toy dimensions, CPU.
 Run: pytest tests/test_psi_input.py"""
 import numpy as np
 import pytest
@@ -61,14 +61,6 @@ def test_deviation_ratio_change_moves_the_latent():
     j = int(np.flatnonzero(mask[0].numpy() > 0)[0]); x[0, j] = (x[0, j] + 0.3) % 1.0
     mu1, _ = _enc(m, x, mask)
     assert not torch.equal(mu0[0], mu1[0]) and torch.equal(mu0[1:], mu1[1:])
-
-
-def test_centred_subtracts_population_psi():
-    t = _toy(); m = _module(psi_input="centred"); pop = _with_pop(m)
-    r = _module(); r.z_encoder_splicing.load_state_dict({k: v for k, v in m.z_encoder_splicing.state_dict().items() if k != "pop_psi"})
-    x, mask = t["junc_ratio"], t["psi_observed_mask"]
-    for u, v in zip(_enc(m, x, mask), _enc(r, (x - pop.unsqueeze(0)) * mask, mask)):
-        assert torch.allclose(u, v, atol=1e-6)
 
 
 def test_deviation_chunked_matches_unchunked():

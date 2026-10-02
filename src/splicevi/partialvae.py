@@ -275,7 +275,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         pool_mode: Literal["mean", "sum"] = "mean",
         max_nobs: int = -1,
         encoder_n_layers: int = 2,    
-        psi_input: Literal["raw", "centred", "deviation"] = "raw",   # "centred": psi - population psi; "deviation": centred input, h(0) subtracted, fixed pool divisor
+        psi_input: Literal["raw", "deviation"] = "raw",   # "deviation": psi - population psi, h(0) subtracted, fixed pool divisor
     ):
         super().__init__()
         ...
@@ -284,7 +284,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         self.code_dim = code_dim
         self.pool_mode = pool_mode
         self.psi_input = psi_input
-        if psi_input in ("centred", "deviation"):
+        if psi_input == "deviation":
             self.register_buffer("pop_psi", torch.zeros(input_dim))   # only registered when used, so older checkpoints still load
         if psi_input == "deviation":   # pooled = sum_j (h_j - h(0)) / pool_divisor (training median of observed junctions per cell)
             if pool_mode != "mean":
@@ -329,8 +329,10 @@ class PartialEncoderEDDIFaster(nn.Module):
 
 
     def _h(self, h_in: torch.Tensor) -> torch.Tensor:
-        """Per-junction network. With psi_input="deviation" the output at zero deviation, h(0), is subtracted (dropout skipped in
-        both passes, so an observed junction at its population ratio contributes exactly 0 in training and evaluation)."""
+        """Per-junction network. With psi_input="deviation" the output at zero deviation, h(0), is subtracted, so an observed junction at its
+        population ratio contributes exactly 0. Dropout inside h is skipped in this mode (both passes): with dropout the two passes would draw
+        different masks, h(x) - h(0) would not be 0 at the population ratio during training, and detection would leak back in. Dropout still
+        applies in the per-cell MLP after pooling and elsewhere in the model; raw mode is unchanged."""
         if self.psi_input != "deviation":
             return self.h_layer(h_in)
         def run(v):
@@ -383,7 +385,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         if (self.max_nobs < 0) or (N_obs <= self.max_nobs):
             # ---- Original (no chunking) path ----
             x_obs = x[b_idx, j_idx].unsqueeze(1)                  # (N_obs, 1)
-            if self.psi_input in ("centred", "deviation"):
+            if self.psi_input == "deviation":
                 x_obs = x_obs - self.pop_psi[j_idx].unsqueeze(1)     # deviation from population psi
             F_obs = F_j_norm.index_select(0, j_idx)               # (N_obs, D), already L2-normalized
 
@@ -404,7 +406,7 @@ class PartialEncoderEDDIFaster(nn.Module):
                 jj = j_idx[start:end]                             # (n,)
 
                 x_chunk = x[bi, jj].unsqueeze(1)                  # (n, 1)
-                if self.psi_input in ("centred", "deviation"):
+                if self.psi_input == "deviation":
                     x_chunk = x_chunk - self.pop_psi[jj].unsqueeze(1)
                 F_chunk = F_j_norm.index_select(0, jj)            # (n, D), already L2-normalized
 
