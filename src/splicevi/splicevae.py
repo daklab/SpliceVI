@@ -321,6 +321,7 @@ class SPLICEVAE(BaseModuleClass):
         h_hidden_dim: int = 64,
         encoder_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum"] = "mean",
+        psi_input: Literal["raw", "deviation"] = "raw",   # splicing-encoder input: raw psi, or deviation (psi - population psi, h(0) subtracted, fixed pool divisor)
         decoder_depth_covariates: bool = False,      # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders); STAGE5 s68.4a
         max_nobs: int = -1,
 
@@ -337,6 +338,7 @@ class SPLICEVAE(BaseModuleClass):
         super().__init__()
         self.n_input_genes = n_input_genes
         self.n_input_junctions = n_input_junctions
+        self.psi_input = psi_input
 
         if n_hidden is None:
             self.n_hidden = np.min([128, int(np.sqrt(n_input_junctions))]) if n_input_junctions > 0 else int(np.sqrt(n_input_genes))
@@ -503,6 +505,7 @@ class SPLICEVAE(BaseModuleClass):
                 pool_mode=pool_mode,
                 max_nobs=max_nobs,
                 encoder_n_layers=n_layers_encoder,
+                psi_input=psi_input,
             )
 
             if latent_distribution == "ln":

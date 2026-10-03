@@ -461,6 +461,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         code_dim: int = 16,
         h_hidden_dim: int = 64,
         pool_mode: Literal["mean", "sum"] = "mean",
+        psi_input: Literal["raw", "deviation"] = "raw",                      # splicing-encoder input; "deviation" = psi - population psi, h(0) subtracted, fixed pool divisor
         decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
         decoder_depth_covariates: bool = False,                               # STAGE5 s68.4a: depth/detection covariates into both decoders
         max_nobs: int = -1,
@@ -537,6 +538,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             code_dim=code_dim,
             h_hidden_dim=h_hidden_dim,
             pool_mode=pool_mode,
+            psi_input=psi_input,
             decoder_depth_covariates=decoder_depth_covariates,
             max_nobs=max_nobs,
 
@@ -558,7 +560,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing}, mask_no_spl={mask_cells_without_splicing} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
-            f"max_nobs={max_nobs}) | "
+            f"max_nobs={max_nobs}, psi_input={psi_input}) | "
             f"init_from_pca={initialize_embeddings_from_pca}, decoder_intercept_init={decoder_intercept_init}, "
             f"decoder_depth_covariates={decoder_depth_covariates}"
         )
@@ -575,6 +577,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         if self.adata is not None:
             if initialize_embeddings_from_pca and splicing_encoder_architecture == "partial":
                 self.init_feature_embedding_from_adata()
+            if psi_input == "deviation" and splicing_encoder_architecture == "partial":
+                self.init_pop_psi_from_adata()
+            if psi_input == "deviation" and splicing_encoder_architecture == "partial":
+                self.init_pool_divisor_from_adata()
             if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
                 self.init_decoder_intercept_from_adata()      # STAGE5 s68.6
             if decoder_depth_covariates:
@@ -628,6 +634,27 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         K = self.adata[jc.mod_key].layers[jc.attr_key]; N = self.adata[ac.mod_key].layers[ac.attr_key]
         num = np.asarray(K.sum(axis=0)).ravel().astype(np.float64); den = np.asarray(N.sum(axis=0)).ravel().astype(np.float64)
         return np.divide(num, den, out=np.zeros_like(num), where=den > 0)
+
+    def init_pop_psi_from_adata(self) -> None:
+        """Fill the partial encoder's pop_psi buffer with the read-weighted population psi of the training data (psi_input="deviation")."""
+        print("Initializing pop_psi (deviation PSI input) from the training data...")
+        p_pop = self.population_psi_from_adata()
+        with torch.no_grad():
+            buf = self.module.z_encoder_splicing.pop_psi
+            buf.copy_(torch.as_tensor(p_pop, dtype=buf.dtype, device=buf.device))
+        print(f"pop_psi set: {int((p_pop > 0).sum())} of {len(p_pop)} junctions with reads; mean {p_pop.mean():.4f}")
+
+    def init_pool_divisor_from_adata(self) -> None:
+        """psi_input="deviation": the partial encoder's fixed pooling divisor = median over training cells of the number of observed junctions."""
+        import scipy.sparse as _sp
+        m = self.adata_manager.get_from_registry("psi_observed_mask") if "psi_observed_mask" in self.adata_manager.data_registry else None
+        if m is None:
+            m = self.adata["splicing"].layers["psi_mask"]
+        n = np.asarray((_sp.csr_matrix(m) > 0).sum(1)).ravel()
+        med = float(np.median(n))
+        with torch.no_grad():
+            self.module.z_encoder_splicing.pool_divisor.fill_(max(med, 1.0))
+        print(f"pool_divisor set: median observed junctions per training cell = {med:.0f}")
 
     def init_decoder_intercept_from_adata(self) -> None:
         """STAGE5 s68.6: initialise the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
