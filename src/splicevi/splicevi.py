@@ -488,6 +488,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
         event_dropout: float = 0.0,                      # STAGE5 s68.9
         decoder_depth_covariates: bool = False,          # STAGE5 s68.4a
+        decoder_depth_covariates_target: Literal["both", "splicing"] = "both",   # STAGE5 §116
         splicing_mix_weight: float | None = None,        # STAGE5 96.B: fixed splicing weight in the joint mix
         n_splicing_private: int = 0,                     # STAGE5 96.A: splicing-private latent dims (last K)
         phi_lr_mult: float = 1.0,                        # STAGE5 s68.10
@@ -578,6 +579,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             psi_input=psi_input,
             event_dropout=event_dropout,
             decoder_depth_covariates=decoder_depth_covariates,
+            decoder_depth_covariates_target=decoder_depth_covariates_target,
             splicing_mix_weight=splicing_mix_weight,
             n_splicing_private=n_splicing_private,
             phi_lr_mult=phi_lr_mult,

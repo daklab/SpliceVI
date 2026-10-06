@@ -333,6 +333,7 @@ class SPLICEVAE(BaseModuleClass):
         splicing_mix_weight: float | None = None,     # STAGE5 96.B: fixed splicing weight in the joint mix (modality_weights='equal' only); None = equal (0.5)
         n_splicing_private: int = 0,                  # STAGE5 96.A: last K latent dims taken from the splicing posterior only, hidden from the expression decoder
         decoder_depth_covariates: bool = False,      # STAGE5 s68.4a: [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
+        decoder_depth_covariates_target: Literal["both", "splicing"] = "both",   # STAGE5 §116: "splicing" = depth covariates into the splicing decoder only (expression decoder: library-size offset only)
         phi_lr_mult: float = 1.0,                    # STAGE5 s68.10: log_phi = raw * mult (Adam then moves log phi mult x faster); 1.0 = original
         splicing_refine_steps: int = 0,              # STAGE5 s87.A3: K Adam steps on the splicing posterior mean (DM of the encoder-visible events + prior), first-order / straight-through; 0 = off
         splicing_refine_lr: float = 0.05,            # STAGE5 s87.A3
@@ -360,6 +361,8 @@ class SPLICEVAE(BaseModuleClass):
         self.psi_input = psi_input
         self.event_dropout = float(event_dropout)
         self.decoder_depth_covariates = bool(decoder_depth_covariates)
+        if decoder_depth_covariates_target not in ("both", "splicing"): raise ValueError("decoder_depth_covariates_target must be 'both' or 'splicing'")
+        self.decoder_depth_covariates_target = decoder_depth_covariates_target
         self.phi_lr_mult = float(phi_lr_mult)
         self.splicing_refine_steps = int(splicing_refine_steps)
         self.splicing_refine_lr = float(splicing_refine_lr)
@@ -467,10 +470,11 @@ class SPLICEVAE(BaseModuleClass):
         )
 
         n_input_decoder = self.n_latent + self.n_continuous_cov + (3 if self.decoder_depth_covariates else 0)   # s68.4a
+        n_input_decoder_expr = n_input_decoder - (3 if (self.decoder_depth_covariates and self.decoder_depth_covariates_target == "splicing") else 0)   # §116
 
         if expression_architecture == "vanilla":
             self.z_decoder_expression = DecoderSCVI(
-                n_input_decoder,
+                n_input_decoder_expr,
                 n_input_genes,
                 n_cat_list=cat_list,
                 n_layers=n_layers_decoder,
@@ -482,7 +486,7 @@ class SPLICEVAE(BaseModuleClass):
             )
         else:
             self.z_decoder_expression = LinearDecoderSCVI(
-                n_input_decoder,
+                n_input_decoder_expr,
                 n_input_genes,
                 n_cat_list=cat_list,
                 use_batch_norm=self.use_batch_norm_decoder,
@@ -1086,7 +1090,8 @@ class SPLICEVAE(BaseModuleClass):
         if depth_cov is not None:   # s68.4a: decoders (only) see the depth covariates
             def _attach_depth(rep):
                 return torch.cat([rep, depth_cov.unsqueeze(0).expand(rep.size(0), -1, -1)], dim=-1) if rep.dim() != depth_cov.dim() else torch.cat([rep, depth_cov], dim=-1)
-            dec_in_expr = _attach_depth(dec_in_expr); dec_in_spl = _attach_depth(dec_in_spl)
+            if self.decoder_depth_covariates_target == "both": dec_in_expr = _attach_depth(dec_in_expr)   # §116: "splicing" leaves the expression decoder without depth inputs
+            dec_in_spl = _attach_depth(dec_in_spl)
         decoder_input_expr = _attach_cont(dec_in_expr)
         # NOTE: partial splicing decoder expects cont covs via arg, not concatenated
         decoder_input_spl  = _attach_cont(dec_in_spl) if self.splicing_decoder_architecture == "vanilla" else dec_in_spl
