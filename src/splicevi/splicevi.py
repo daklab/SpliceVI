@@ -329,6 +329,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         If True, cells with no observed junction get no splicing weight in the latent mix and are
         excluded from the alignment penalty (default False = original behavior, where every cell
         always counts as having splicing).
+    splicing_encoder_off
+        STAGE5 §128 ablation. If True, the splicing encoder receives no input and no cell counts as having splicing in the
+        latent mix (joint latent = expression posterior); the decoder depth covariates still use the observed-junction mask.
+        Use with ``splicing_loss_weight=0`` for an expression-only model with the SpliceVI architecture. Default False.
     variance_mixing
         How the two encoders' variances are combined, for every ``modality_weights`` except
         ``"concatenate"``: ``"sqrt_weights"`` (default; for equal/cell/universal the MultiVI
@@ -444,6 +448,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
         mask_cells_without_splicing: bool = False,
+        splicing_encoder_off: bool = False,
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int | None = None,
@@ -532,6 +537,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             modality_penalty=modality_penalty,
             variance_mixing=variance_mixing,
             mask_cells_without_splicing=mask_cells_without_splicing,
+            splicing_encoder_off=splicing_encoder_off,
             n_batch=self.summary_stats.n_batch,
             n_obs=adata.n_obs,
             n_labels=self.summary_stats.get("n_labels", 0),

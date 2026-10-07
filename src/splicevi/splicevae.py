@@ -349,6 +349,7 @@ class SPLICEVAE(BaseModuleClass):
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
         mask_cells_without_splicing: bool = False,
+        splicing_encoder_off: bool = False,          # STAGE5 §128: splicing encoder gets no input and no weight in the latent mix (depth covariates keep the observed mask)
 
         # --- Misc ---
         **model_kwargs,
@@ -588,6 +589,7 @@ class SPLICEVAE(BaseModuleClass):
             raise ValueError("variance_mixing must be one of ['sqrt_weights', 'linear', 'squared']")
         self.variance_mixing = variance_mixing
         self.mask_cells_without_splicing = bool(mask_cells_without_splicing)
+        self.splicing_encoder_off = bool(splicing_encoder_off)
         self.n_modalities = int(n_input_genes > 0) + int(n_input_junctions > 0)
         max_n_modalities = 2
         if modality_weights == "equal":
@@ -621,6 +623,8 @@ class SPLICEVAE(BaseModuleClass):
         Default (original behavior): always True (the threshold is below any attainable sum).
         With ``mask_cells_without_splicing``: True only if the cell has >= 1 observed junction.
         """
+        if getattr(self, "splicing_encoder_off", False):   # §128: no cell counts as having splicing (joint latent = expression posterior)
+            return torch.zeros(x_spl.shape[0], dtype=torch.bool, device=x_spl.device)
         if self.mask_cells_without_splicing and psi_mask is not None:
             return psi_mask.sum(dim=1) > 0
         return x_spl.sum(dim=1) > -10000000000000
@@ -740,6 +744,8 @@ class SPLICEVAE(BaseModuleClass):
             lib = size_factor[:, 0] if size_factor is not None else x_expr.sum(dim=1)
             raw_cov = torch.stack([torch.log1p((x_expr > 0).sum(dim=1).to(x_expr.dtype)), torch.log1p(mask.sum(dim=1).to(x_expr.dtype)) if mask is not None else torch.zeros_like(lib), torch.log1p(lib.to(x_expr.dtype))], dim=1)
             depth_cov = (raw_cov - self.depth_cov_mean) / self.depth_cov_std
+        if getattr(self, "splicing_encoder_off", False):   # §128: zero splicing-encoder input AFTER the depth covariates (which use the observed mask)
+            x_spl_enc = torch.zeros_like(x_spl_enc); mask_enc = torch.zeros_like(mask_enc) if mask_enc is not None else None
 
         if cont_covs is not None and self.encode_covariates:
             encoder_input_expr = torch.cat((x_expr, cont_covs), dim=-1)
