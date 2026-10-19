@@ -449,6 +449,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
         mask_cells_without_splicing: bool = False,
         splicing_encoder_off: bool = False,
+        expr_encoder_input: Literal["as_is", "log1p_cp10k"] = "as_is",   # STAGE5 §163
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int | None = None,
@@ -538,6 +539,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             variance_mixing=variance_mixing,
             mask_cells_without_splicing=mask_cells_without_splicing,
             splicing_encoder_off=splicing_encoder_off,
+            expr_encoder_input=expr_encoder_input,
             n_batch=self.summary_stats.n_batch,
             n_obs=adata.n_obs,
             n_labels=self.summary_stats.get("n_labels", 0),

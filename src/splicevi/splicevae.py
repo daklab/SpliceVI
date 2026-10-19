@@ -349,6 +349,7 @@ class SPLICEVAE(BaseModuleClass):
         modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
         mask_cells_without_splicing: bool = False,
+        expr_encoder_input: Literal["as_is", "log1p_cp10k"] = "as_is",   # STAGE5 §163: "log1p_cp10k" = log1p(x / rowsum(x) * 1e4) into the EXPRESSION ENCODER only (likelihood, size factor, depth covariates, decoders unchanged)
         splicing_encoder_off: bool = False,          # STAGE5 §128: splicing encoder gets no input and no weight in the latent mix (depth covariates keep the observed mask)
 
         # --- Misc ---
@@ -590,6 +591,8 @@ class SPLICEVAE(BaseModuleClass):
         self.variance_mixing = variance_mixing
         self.mask_cells_without_splicing = bool(mask_cells_without_splicing)
         self.splicing_encoder_off = bool(splicing_encoder_off)
+        if expr_encoder_input not in ("as_is", "log1p_cp10k"): raise ValueError("expr_encoder_input must be 'as_is' or 'log1p_cp10k'")
+        self.expr_encoder_input = expr_encoder_input
         self.n_modalities = int(n_input_genes > 0) + int(n_input_junctions > 0)
         max_n_modalities = 2
         if modality_weights == "equal":
@@ -747,11 +750,14 @@ class SPLICEVAE(BaseModuleClass):
         if getattr(self, "splicing_encoder_off", False):   # §128: zero splicing-encoder input AFTER the depth covariates (which use the observed mask)
             x_spl_enc = torch.zeros_like(x_spl_enc); mask_enc = torch.zeros_like(mask_enc) if mask_enc is not None else None
 
+        x_expr_enc = x_expr   # STAGE5 §163: encoder view of the expression counts; "as_is" (default) is the original tensor itself
+        if getattr(self, "expr_encoder_input", "as_is") == "log1p_cp10k":
+            x_expr_enc = torch.log1p(x_expr / x_expr.sum(dim=1, keepdim=True).clamp_min(1e-8) * 1e4)
         if cont_covs is not None and self.encode_covariates:
-            encoder_input_expr = torch.cat((x_expr, cont_covs), dim=-1)
+            encoder_input_expr = torch.cat((x_expr_enc, cont_covs), dim=-1)
             encoder_input_spl = torch.cat((x_spl_enc, cont_covs), dim=-1)
         else:
-            encoder_input_expr = x_expr
+            encoder_input_expr = x_expr_enc
             encoder_input_spl = x_spl_enc
 
         if cat_covs is not None and self.encode_covariates:
