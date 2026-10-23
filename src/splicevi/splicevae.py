@@ -216,6 +216,11 @@ class SPLICEVAE(BaseModuleClass):
         ``"gamma"`` is a MAP Gamma(``phi_prior_shape``, ``phi_prior_rate``) prior on the
         effective phi, scaled by 1/n_obs (proper MAP scaling for a per-cell-mean loss).
         ``"none"`` disables it.
+    psi_prior_pseudocount : float, default 0.0
+        Pseudo-count prior on the decoded PSI (dirichlet_multinomial only): adds
+        ``-psi_prior_pseudocount * sum_j pi_j log p_j`` per cell, i.e. that many virtual reads per ATSE distributed as
+        the population PSI ``pi`` (buffer ``psi_prior_pop``, filled by the model class). Entries without reads are pulled
+        to the population PSI; entries with reads are dominated by their data. 0 = off (original behaviour).
     phi_prior_shape, phi_prior_rate : float, defaults 2.0, 0.1
         Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).
     phi_init : {"log100","prior"}, default "log100"
@@ -315,6 +320,7 @@ class SPLICEVAE(BaseModuleClass):
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
         phi_init: Literal["log100", "prior", "constant"] = "log100",
+        psi_prior_pseudocount: float = 0.0,
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
         code_dim: int = 16,
@@ -391,6 +397,13 @@ class SPLICEVAE(BaseModuleClass):
         self.phi_prior_shape = float(phi_prior_shape)
         self.phi_prior_rate = float(phi_prior_rate)
         self.phi_init = phi_init
+        if psi_prior_pseudocount < 0:
+            raise ValueError("psi_prior_pseudocount must be >= 0")
+        if psi_prior_pseudocount > 0 and splicing_loss_type != "dirichlet_multinomial":
+            raise ValueError("psi_prior_pseudocount needs splicing_loss_type='dirichlet_multinomial' (p must be a per-ATSE simplex)")
+        self.psi_prior_pseudocount = float(psi_prior_pseudocount)
+        if self.psi_prior_pseudocount > 0:
+            self.register_buffer("psi_prior_pop", torch.zeros(n_input_junctions))
 
         cat_list = [n_batch] + list(n_cats_per_cov) if n_cats_per_cov is not None else []
         encoder_cat_list = cat_list if encode_covariates else None
@@ -1078,6 +1091,10 @@ class SPLICEVAE(BaseModuleClass):
             generative_outputs["phi"]
         )
         
+        if self.psi_prior_pseudocount > 0:   # pseudo-count prior: psi_prior_pseudocount virtual reads per ATSE at population PSI
+            p_dec = generative_outputs["p"].clamp_min(1e-8)
+            rl_splicing = rl_splicing - self.psi_prior_pseudocount * (self.psi_prior_pop * torch.log(p_dec)).sum(dim=-1)
+
         # Combine both reconstruction losses
         recon_loss_expression = (rl_expression * mask_expr)
         recon_loss_splicing = rl_splicing * self.splicing_loss_weight

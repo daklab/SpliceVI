@@ -450,6 +450,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
         phi_init: Literal["log100", "prior", "constant"] = "log100",
+        psi_prior_pseudocount: float = 0.0,
 
         # --- Architecture toggles ---
         splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
@@ -527,6 +528,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             phi_prior_shape=phi_prior_shape,
             phi_prior_rate=phi_prior_rate,
             phi_init=phi_init,
+            psi_prior_pseudocount=psi_prior_pseudocount,
 
             # architectures
             splicing_encoder_architecture=splicing_encoder_architecture,
@@ -556,7 +558,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             f"gene_like={gene_likelihood}, disp={dispersion} | "
             f"splicing_loss={splicing_loss_type}, dm_conc={dm_concentration}, "
             f"sp_loss_weight={splicing_loss_weight}, "
-            f"lambda_prior={lambda_prior}, phi_prior={phi_prior}, phi_floor={phi_floor}, phi_init={phi_init} | "
+            f"lambda_prior={lambda_prior}, phi_prior={phi_prior}, phi_floor={phi_floor}, phi_init={phi_init}, "
+            f"psi_prior_pseudocount={psi_prior_pseudocount} | "
             f"mix={modality_weights}, penalty={modality_penalty}, var_mix={variance_mixing}, mask_no_spl={mask_cells_without_splicing} | "
             f"PE(code_dim={code_dim}, h_hidden={h_hidden_dim}, "
             f"enc_hidden={encoder_hidden_dim}, pool={pool_mode}, "
@@ -589,6 +592,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             # Only needed for DM splicing likelihood
             if splicing_loss_type == "dirichlet_multinomial":
                 self.init_junc2atse()
+            if psi_prior_pseudocount > 0:
+                self.init_psi_prior_from_adata()
 
 
         
@@ -666,6 +671,20 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             b = self.module.z_decoder_splicing.ps_output.bias
             b.copy_(torch.as_tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=b.dtype, device=b.device))
         print(f"decoder intercept set from population PSI ({len(p_pop)} junctions)")
+
+    def init_psi_prior_from_adata(self) -> None:
+        """Population PSI for the pseudo-count prior (psi_prior_pseudocount > 0): read-weighted population PSI per
+        junction; junctions of events with no reads in the training data get 1 / (junctions in the event), so the prior
+        is a distribution within every event."""
+        p_pop = self.population_psi_from_adata()
+        ev = pd.factorize(self.adata[self.adata_manager.data_registry["junc_counts_key"].mod_key].var["event_id"].astype(str))[0]
+        size = np.bincount(ev)[ev]
+        no_reads = np.bincount(ev, weights=p_pop)[ev] == 0
+        p_pop = np.where(no_reads, 1.0 / size, p_pop)
+        with torch.no_grad():
+            self.module.psi_prior_pop.copy_(torch.as_tensor(p_pop, dtype=self.module.psi_prior_pop.dtype))
+        print(f"psi prior: population PSI set for {len(p_pop)} junctions ({int(no_reads.sum())} in events without reads -> uniform); "
+              f"pseudo-count {self.module.psi_prior_pseudocount}")
 
     def init_depth_covariate_stats_from_adata(self) -> None:
         """STAGE5 s68.4a: mean/std of [log1p detected genes, log1p observed junctions, log1p library size] over the training cells,
@@ -964,6 +983,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         return_mean: bool = True,
         return_numpy: bool = False,
         silent: bool = True,
+        expected: bool = False,
     ) -> np.ndarray | pd.DataFrame:
         r"""Returns the normalized (decoded) gene expression.
 
@@ -999,6 +1019,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         return_numpy
             Return a numpy array instead of a pandas DataFrame.
         %(de_silent)s
+        expected
+            If True, return the ZINB expected expression :math:`(1 - \pi) \rho_n`, with :math:`\pi` the decoder's
+            dropout probability, instead of :math:`\rho_n`. Only for ``gene_likelihood="zinb"``. Used by DE with
+            ``norm_expression_function="zinb_expected"``.
 
         Returns
         -------
@@ -1009,6 +1033,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         self._check_adata_modality_weights(adata)
         adata = self._validate_anndata(adata)
         adata_manager = self.get_anndata_manager(adata, required=True)
+        if expected and getattr(self.module, "gene_likelihood", None) != "zinb":
+            raise ValueError("expected=True requires gene_likelihood='zinb' (with NB, px_scale already is the expected expression).")
         if indices is None:
             indices = np.arange(adata.n_obs)
         if n_samples_overall is not None:
@@ -1037,6 +1063,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                     compute_loss=False,
                 )
                 output = generative_outputs["px_scale"]
+                if expected:
+                    output = output * (1 - torch.sigmoid(generative_outputs["px_dropout"]))
                 output = output[..., gene_mask]
                 output = output.cpu().numpy()
                 per_batch_exprs.append(output)
@@ -1194,6 +1222,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         return_mean: bool = True,
         return_numpy: bool = False,
         silent: bool = True,
+        sample: bool = False,
     ) -> np.ndarray | pd.DataFrame:
         r"""Returns **DM-normalized** splicing probabilities (PSI*).
 
@@ -1237,6 +1266,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             If True, return a NumPy array; else a pandas DataFrame.
         silent
             If True, disables progress display.
+        sample
+            If True, return one random draw from the per-junction posterior
+            :math:`\psi_j \sim \mathrm{Beta}(c p_j + y_j,\ c (1 - p_j) + n - y_j)` (the Beta marginal of the
+            Dirichlet posterior, whose mean is :math:`\psi^\*`) instead of its mean. Used by DS with
+            ``norm_splicing_function="dm_posterior_sample"``: junctions with few reads get wide draws, so they are not
+            called on the decoder prediction alone.
 
         Returns
         -------
@@ -1349,7 +1384,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                     n_b = n
 
                 # Compute DM-smoothed PSI*
-                psi_star = (phi * p + y_b) / (phi + n_b + eps)
+                if sample:
+                    a_ = (phi * p + y_b).clamp_min(eps)
+                    b_ = (phi * (1.0 - p) + (n_b - y_b)).clamp_min(eps)
+                    psi_star = torch.distributions.Beta(a_, b_).sample()
+                else:
+                    psi_star = (phi * p + y_b) / (phi + n_b + eps)
                 psi_star = psi_star.clamp(eps, 1.0 - eps)
 
                 per_batch_psis.append(psi_star)
@@ -1378,6 +1418,131 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
 
     @torch.inference_mode()
+    def get_normalized_expression_ZINB(
+        self,
+        adata: AnnOrMuData | None = None,
+        indices: Sequence[int] | None = None,
+        n_samples_overall: int | None = None,
+        transform_batch: Sequence[Number | str] | None = None,
+        gene_list: Sequence[str] | None = None,
+        use_z_mean: bool = True,
+        n_samples: int = 1,
+        batch_size: int | None = None,
+        return_mean: bool = True,
+        return_numpy: bool = False,
+        silent: bool = True,
+        sample: bool = False,
+        return_counts: bool = False,
+    ) -> np.ndarray | pd.DataFrame:
+        r"""Returns **ZINB posterior-mean** normalized expression (the expression analogue of
+        :meth:`get_normalized_splicing_DM`). Only valid for ``gene_likelihood="zinb"``.
+
+        The ZINB is a Gamma-Poisson mixed with a point mass at zero. With decoder mean :math:`\mu`
+        (``px_rate``), inverse dispersion :math:`\theta` (``px_r``) and dropout probability
+        :math:`\pi = \sigma(\text{px\_dropout})`, the posterior mean of the underlying rate given the
+        observed count :math:`y` is
+
+        * :math:`y > 0`: :math:`E[\lambda \mid y] = \mu (\theta + y) / (\theta + \mu)`, i.e. a weighted average
+          :math:`\tfrac{\theta}{\theta+\mu}\mu + \tfrac{\mu}{\theta+\mu} y` of the decoder and the data;
+        * :math:`y = 0`: with :math:`w = P(\text{dropout} \mid y=0) = \pi / (\pi + (1-\pi)(\theta/(\theta+\mu))^\theta)`,
+          :math:`E[\lambda \mid 0] = w \mu + (1-w)\, \theta\mu / (\theta+\mu)` (a dropout zero carries no
+          information; a sampling zero pulls the estimate down).
+
+        The result is divided by the cell's library factor (``px_rate / px_scale``), so it is on the same
+        scale as :meth:`get_normalized_expression` (``px_scale``) and can replace it in DE. Parameters
+        and return shape are the same as :meth:`get_normalized_expression`, plus:
+
+        sample
+            If True, return one random draw from the posterior instead of its mean: for y > 0,
+            :math:`\lambda \sim \mathrm{Gamma}(\theta + y,\ \theta/\mu + 1)`; for y = 0, with probability w the prior
+            :math:`\mathrm{Gamma}(\theta, \theta/\mu)` (dropout zero) and otherwise :math:`\mathrm{Gamma}(\theta, \theta/\mu + 1)`
+            (Gamma shape / rate). Used by DE with ``norm_expression_function="zinb_posterior_sample"``, so each Monte
+            Carlo draw carries the uncertainty of each cell's expression given its counts.
+        return_counts
+            If True, do not divide by the library factor (values on the count scale, e.g. for pseudobulk sums).
+        """
+        if getattr(self.module, "gene_likelihood", None) != "zinb":
+            raise ValueError(
+                "get_normalized_expression_ZINB requires gene_likelihood='zinb' "
+                f"(this model uses {getattr(self.module, 'gene_likelihood', None)!r})."
+            )
+        self._check_adata_modality_weights(adata)
+        adata = self._validate_anndata(adata)
+        adata_manager = self.get_anndata_manager(adata, required=True)
+        if indices is None:
+            indices = np.arange(adata.n_obs)
+        if n_samples_overall is not None:
+            indices = np.random.choice(indices, n_samples_overall)
+        scdl = self._make_data_loader(adata=adata, indices=indices, batch_size=batch_size)
+        transform_batch = _get_batch_code_from_category(adata_manager, transform_batch)
+        if gene_list is None:
+            gene_mask = slice(None)
+        else:
+            all_genes = adata.var_names[: self.n_genes]
+            gene_mask = [gene in gene_list for gene in all_genes]
+
+        eps = 1e-8
+        exprs = []
+        for tensors in scdl:
+            y = tensors[REGISTRY_KEYS.X_KEY][:, : self.n_genes]
+            per_batch_exprs = []
+            for batch in track(transform_batch, disable=silent):
+                if batch is not None:
+                    batch_indices = tensors[REGISTRY_KEYS.BATCH_KEY]
+                    tensors[REGISTRY_KEYS.BATCH_KEY] = torch.ones_like(batch_indices) * batch
+                _, generative_outputs = self.module.forward(
+                    tensors=tensors,
+                    inference_kwargs={"n_samples": n_samples},
+                    generative_kwargs={"use_z_mean": use_z_mean},
+                    compute_loss=False,
+                )
+                mu = generative_outputs["px_rate"]
+                scale = generative_outputs["px_scale"]
+                theta = generative_outputs["px_r"]
+                pi = torch.sigmoid(generative_outputs["px_dropout"])
+                yb = y.to(mu.device).float()
+                if mu.dim() == 3:
+                    yb = yb.unsqueeze(0)
+                theta = theta.expand_as(mu) if theta.dim() < mu.dim() or theta.shape != mu.shape else theta
+                post_pos = mu * (theta + yb) / (theta + mu + eps)
+                post_zero_nb = theta * mu / (theta + mu + eps)
+                # P(y=0 | NB) = (theta/(theta+mu))^theta, in log space for stability
+                log_p0 = theta * (torch.log(theta + eps) - torch.log(theta + mu + eps))
+                w = pi / (pi + (1.0 - pi) * torch.exp(log_p0) + eps)
+                post_zero = w * mu + (1.0 - w) * post_zero_nb
+                post = torch.where(yb > 0, post_pos, post_zero)
+                if sample:
+                    rate_post = theta / (mu + eps) + 1.0
+                    rate_prior = theta / (mu + eps)
+                    g_pos = torch.distributions.Gamma(theta + yb, rate_post).sample()
+                    g_zero_drop = torch.distributions.Gamma(theta, rate_prior + eps).sample()
+                    g_zero_real = torch.distributions.Gamma(theta, rate_post).sample()
+                    is_drop = torch.rand_like(w) < w
+                    post = torch.where(yb > 0, g_pos, torch.where(is_drop, g_zero_drop, g_zero_real))
+                if return_counts:
+                    output = post[..., gene_mask]
+                else:
+                    # back to the px_scale scale: divide by the library factor px_rate / px_scale
+                    lib = mu.sum(-1, keepdim=True) / (scale.sum(-1, keepdim=True) + eps)
+                    output = (post / (lib + eps))[..., gene_mask]
+                per_batch_exprs.append(output.cpu().numpy())
+            exprs += [np.stack(per_batch_exprs).mean(0)]
+
+        if n_samples > 1:
+            exprs = np.concatenate(exprs, axis=-2)
+        else:
+            exprs = np.concatenate(exprs, axis=0)
+        if n_samples > 1 and return_mean:
+            exprs = exprs.mean(0)
+        if return_numpy:
+            return exprs
+        return pd.DataFrame(
+            exprs,
+            columns=adata.var_names[: self.n_genes][gene_mask],
+            index=adata.obs_names[indices],
+        )
+
+    @torch.inference_mode()
     def differential_expression(
         self,
         adata: AnnData | None = None,
@@ -1395,6 +1560,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         batchid2: Iterable[str] | None = None,
         fdr_target: float = 0.05,
         silent: bool = False,
+        norm_expression_function: Literal["decoder", "zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"] = "decoder",
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential expression analysis.
@@ -1418,6 +1584,16 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         %(de_batchid2)s
         %(de_fdr_target)s
         %(de_silent)s
+        norm_expression_function
+            ``"decoder"`` (default; the original behavior): compare the decoder's expected expression
+            (:meth:`get_normalized_expression`, ``px_scale``). ``"zinb_expected"``: compare the ZINB expected
+            expression ``(1 - dropout) * px_scale``; with ZINB the dropout probability can absorb part of a
+            difference between groups, which ``px_scale`` then misses (on Allen Brain thinned to EasySci depth this
+            roughly doubled the fold changes towards the full-depth ones). ``"zinb_posterior_mean"``: compare the ZINB
+            posterior mean given each cell's observed counts (:meth:`get_normalized_expression_ZINB`), which
+            weighs in the raw data; ``"zinb_posterior_sample"``: one draw from that posterior per Monte Carlo
+            sample, so per-cell count uncertainty enters ``proba_de``. The three ZINB options need
+            ``gene_likelihood="zinb"``.
         **kwargs
             Additional keyword arguments for differential computation.
 
@@ -1429,10 +1605,31 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         adata = self._validate_anndata(adata)
 
         col_names = adata.var_names[: self.n_genes]
-        model_fn = partial(
-            self.get_normalized_expression,
-            batch_size=batch_size,
-        )
+        if norm_expression_function == "decoder":
+            model_fn = partial(
+                self.get_normalized_expression,
+                batch_size=batch_size,
+            )
+        elif norm_expression_function in ("zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"):
+            if getattr(self.module, "gene_likelihood", None) != "zinb":
+                raise ValueError(
+                    f"norm_expression_function={norm_expression_function!r} requires gene_likelihood='zinb' "
+                    f"(this model uses {getattr(self.module, 'gene_likelihood', None)!r})."
+                )
+            if norm_expression_function == "zinb_expected":
+                model_fn = partial(self.get_normalized_expression, batch_size=batch_size, expected=True)
+            else:
+                model_fn = partial(
+                    self.get_normalized_expression_ZINB,
+                    batch_size=batch_size,
+                    sample=(norm_expression_function == "zinb_posterior_sample"),
+                )
+        else:
+            raise ValueError(
+                "norm_expression_function must be 'decoder', 'zinb_expected', 'zinb_posterior_mean' or "
+                "'zinb_posterior_sample', "
+                f"got {norm_expression_function!r}"
+            )
         all_stats_fn = partial(
             scrna_raw_counts_properties,
             var_idx=np.arange(adata.shape[1])[: self.n_genes],
@@ -1479,7 +1676,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         batchid2: Iterable[str] | None = None,
         fdr_target: float = 0.05,
         silent: bool = False,
-        norm_splicing_function: Literal["decoder", "dm_posterior_mean"] = "dm_posterior_mean",
+        norm_splicing_function: Literal["decoder", "dm_posterior_mean", "dm_posterior_sample"] = "dm_posterior_mean",
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential splicing analysis.
@@ -1590,10 +1787,11 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                 self.get_normalized_splicing,
                 batch_size=batch_size,
             )
-        elif norm_splicing_function == "dm_posterior_mean":
+        elif norm_splicing_function in ("dm_posterior_mean", "dm_posterior_sample"):
             model_fn = partial(
                 self.get_normalized_splicing_DM,
                 batch_size=batch_size,
+                sample=(norm_splicing_function == "dm_posterior_sample"),
             )
         else:
             print("Unrecognized Normalized Splicing Mode, defaulting to regular decoder output.")
