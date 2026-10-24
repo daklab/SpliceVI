@@ -41,4 +41,11 @@ rel = float(np.max(np.abs(zm - ref3) / (np.abs(ref3) + 1e-12))); print(f"[3] ZIN
 # [4] ZINB posterior sample: mean of 400 draws vs posterior mean
 zd = np.stack([np.asarray(m.get_normalized_expression_ZINB(adata=md, indices=idx[:50], return_numpy=True, sample=True)) for _ in range(400)])
 z4 = np.abs(zd.mean(0) - zm) / (zd.std(0) / np.sqrt(400) + 1e-12); f4 = float(np.mean(z4 < 4)); print(f"[4] ZINB sample mean vs posterior mean: share within 4 SE = {f4:.4f}"); ok &= f4 > 0.995
+# [5] §171 zinb_expected (Smriti f7b1062): (1 - sigmoid(px_dropout)) * px_scale, and DE runs with it
+if True:
+    ze = np.asarray(m.get_normalized_expression(adata=md, indices=idx[:50], return_numpy=True, expected=True))
+    pi5 = 1 / (1 + np.exp(-g["px_dropout"].double().numpy())); ref5 = sc * (1 - pi5)
+    rel5 = float(np.max(np.abs(ze - ref5) / (np.abs(ref5) + 1e-12))); print(f"[5] zinb_expected vs (1 - dropout) * px_scale: max relative difference = {rel5:.2e}"); ok &= rel5 < 1e-5
+    scvi.settings.seed = 0; de5 = m.differential_expression(adata=md, idx1=i1, idx2=i2, silent=True, norm_expression_function="zinb_expected")
+    f5 = bool(np.isfinite(de5.proba_de).all() and len(de5) == len(o["de"])); print(f"[5] DE with zinb_expected: {len(de5)} genes, finite = {f5}; |lfc| median {de5.lfc_mean.abs().median():.3f} vs decoder {np.median(np.abs(o['de'][:, 1])):.3f}"); ok &= f5
 print("ALL TESTS PASSED" if ok else "SOME TESTS FAILED")
