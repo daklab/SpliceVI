@@ -755,6 +755,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
         disable_cross_gate: bool = False,
+        num_workers: int = 0,
+        pin_memory: bool = False,
+        load_sparse_tensor: bool = False,
         datasplitter_kwargs: dict | None = None,
         plan_kwargs: dict | None = None,
         **kwargs,
@@ -812,6 +815,16 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             posterior is the real mixed latent from the start -- ordinary KL warmup, no modality
             switching. For ``modality_weights="concatenate"`` it also disables the
             closed-during-warmup cross-term gating. Default False = original behavior.
+        num_workers
+            Data-loader worker processes for the training and validation loaders (kept alive across epochs). Batches
+            are built in parallel with the GPU step instead of on the main process. 0 = original behavior.
+        pin_memory
+            Page-locked host memory for batches, which makes the copy to the GPU faster. Default False.
+        load_sparse_tensor
+            Send sparse layers to the GPU as sparse tensors and make them dense there (scvi-tools'
+            ``on_after_batch_transfer``), instead of building dense 79,768-wide matrices on the CPU for every batch.
+            Registered splicing layers stored dense are converted to CSR in memory first (same values). The batches
+            the model sees are identical. Default False = original behavior.
         datasplitter_kwargs
             Additional kwargs for the data splitter.
         plan_kwargs
@@ -844,7 +857,15 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         else:
             plan_kwargs = update_dict
 
-        datasplitter_kwargs = datasplitter_kwargs or {}
+        datasplitter_kwargs = dict(datasplitter_kwargs or {})
+        if num_workers > 0:
+            datasplitter_kwargs.setdefault("num_workers", int(num_workers))
+            datasplitter_kwargs.setdefault("persistent_workers", True)
+        if pin_memory:
+            datasplitter_kwargs.setdefault("pin_memory", True)
+        if load_sparse_tensor:
+            self._sparsify_registered_layers()
+            datasplitter_kwargs.setdefault("load_sparse_tensor", True)
 
         data_splitter = self._data_splitter_cls(
             self.adata_manager,
@@ -968,6 +989,18 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                     z = qz_m
             latent.append(z.cpu())
         return torch.cat(latent).numpy()
+
+    def _sparsify_registered_layers(self) -> None:
+        """Convert registered layers stored as dense arrays to CSR in memory (same values), so they can be loaded as
+        sparse tensors (train(load_sparse_tensor=True)). Expression and splicing layers only; obs/obsm fields untouched."""
+        for key, info in self.adata_manager.data_registry.items():
+            if info.attr_name != "layers":
+                continue
+            ad_ = self.adata[info.mod_key] if info.mod_key is not None else self.adata
+            X = ad_.layers[info.attr_key]
+            if isinstance(X, np.ndarray):
+                ad_.layers[info.attr_key] = sp.csr_matrix(X)
+                print(f"[TRAIN] {info.mod_key}.layers['{info.attr_key}'] ({key}) converted to CSR for sparse loading")
 
     @torch.inference_mode()
     def get_normalized_expression(

@@ -290,6 +290,16 @@ def evaluate_split(
         )
 
 
+def release_mudata(model, mdata):
+    """Drop scvi-tools' references to a MuData set up for this model (its AnnDataManager in the class-level and the
+    model's own manager store), so `del` actually frees it. Without this every MuData passed to setup_mudata stays in
+    memory until the process ends (~20 GB per masked TEST file)."""
+    try:
+        model.deregister_manager(mdata)
+    except Exception as e:   # not registered: nothing to release
+        print(f"[CLEANUP] deregister_manager skipped: {e}")
+
+
 def cross_fold_hash(splits) -> str:
     """Short id of a fold assignment, so runs (and model kinds) can be checked for identical folds."""
     h = hashlib.sha1()
@@ -3169,7 +3179,9 @@ def main():
     # Masked-ATSE imputation on TEST
     # -----------------------------------------------------------------
     print("[CLEANUP] Releasing TEST MuData from memory before masked imputation...")
+    release_mudata(model, mdata_test)
     del mdata_test
+    gc.collect()
     torch.cuda.empty_cache()
 
     if "masked_impute" in EVALS:
@@ -3753,6 +3765,7 @@ def main():
                     del masked_orig, bin_mask, eval_rows, eval_cols
 
                 print(f"[EVAL/IMPUTE/{tag}] Cleaning up masked MuData from memory...")
+                release_mudata(model, mdata_masked)
                 del mdata_masked, ad_masked
                 gc.collect()
                 torch.cuda.empty_cache()
