@@ -56,7 +56,7 @@ def test_defaults_off():
 
 
 def test_depth_covariates_decoders_only():
-    """68.4a: three standardised covariates reach both decoders (+3 inputs); the encoders are unchanged."""
+    """68.4a: three standardized covariates reach both decoders (+3 inputs); the encoders are unchanged."""
     t = _toy(); m0 = _module(); m4 = _module(decoder_depth_covariates=True)
     inf, _, out = _run(m4, t)
     assert tuple(inf["depth_cov"].shape) == (N, 3)
@@ -65,7 +65,7 @@ def test_depth_covariates_decoders_only():
     assert m4.z_encoder_splicing.h_layer[0].in_features == m0.z_encoder_splicing.h_layer[0].in_features
     assert m4.z_encoder_expression.encoder.fc_layers[0][0].in_features == m0.z_encoder_expression.encoder.fc_layers[0][0].in_features
     assert torch.isfinite(out.loss)
-    # covariates = [log1p detected genes, log1p observed junctions, log1p library size], standardised by the stored buffers
+    # covariates = [log1p detected genes, log1p observed junctions, log1p library size], standardized by the stored buffers
     x = t[REGISTRY_KEYS.X_KEY]; raw = torch.stack([torch.log1p((x > 0).sum(1).float()), torch.log1p(t["psi_observed_mask"].sum(1)),
                                                    torch.log1p(t[REGISTRY_KEYS.SIZE_FACTOR_KEY][:, 0])], 1)
     assert torch.allclose(inf["depth_cov"], (raw - m4.depth_cov_mean) / m4.depth_cov_std)

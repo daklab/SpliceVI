@@ -1774,7 +1774,7 @@ def plot_psi_density_scatter(
     """
     Square 2-D density scatter: observed PSI (x) vs predicted PSI (y).
 
-    Points are coloured by local density estimated with Gaussian KDE on a
+    Points are colored by local density estimated with Gaussian KDE on a
     random subsample (max_pts) so the call stays fast even for millions of
     entries. A y=x diagonal reference line and a Pearson-r annotation are
     included.
@@ -3256,7 +3256,7 @@ def main():
                     # Split eval into three cases:
                     #   "dropped"  – originally observed but dropped by downsampling
                     #   "observed" – still observed after downsampling (noisy PSI)
-                    #   "all"      – union of the two (current / legacy behaviour)
+                    #   "all"      – union of the two (current / legacy behavior)
                     junc_ratio_orig = ad_masked.layers["junc_ratio_original"]
                     if not sparse.isspmatrix_csr(junc_ratio_orig):
                         junc_ratio_orig = sparse.csr_matrix(junc_ratio_orig)

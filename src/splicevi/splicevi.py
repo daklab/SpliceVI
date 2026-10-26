@@ -662,7 +662,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         print(f"pool_divisor set: median observed junctions per training cell = {med:.0f}")
 
     def init_decoder_intercept_from_adata(self) -> None:
-        """STAGE5 s68.6: initialise the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
+        """STAGE5 s68.6: initialize the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
         the within-event softmax reproduces the read-weighted population PSI: bias_j = log(clip(p_pop_j, 1e-4, 1)).
         (generative() maps sigmoid(bias) -> clamp -> logit -> group softmax, i.e. softmax over the event of the bias.)"""
         print("Initializing the splicing-decoder intercept at log(population PSI)...")
@@ -688,7 +688,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
     def init_depth_covariate_stats_from_adata(self) -> None:
         """STAGE5 s68.4a: mean/std of [log1p detected genes, log1p observed junctions, log1p library size] over the training cells,
-        stored as buffers so the decoders' covariates are standardised with training constants (same definitions as inference())."""
+        stored as buffers so the decoders' covariates are standardized with training constants (same definitions as inference())."""
         rna_info = self.adata_manager.data_registry[REGISTRY_KEYS.X_KEY]; mk = self.adata_manager.data_registry["psi_observed_mask"]
         X = self.adata[rna_info.mod_key].layers[rna_info.attr_key] if rna_info.attr_name == "layers" else self.adata[rna_info.mod_key].X
         n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float64)
