@@ -1906,6 +1906,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         return result
 
 
+    @staticmethod
+    def preset(name, atlas=None, joint=False):
+        """Named recipes behind the paper's models; see :func:`splicevi.presets.preset`. Class defaults are unchanged."""
+        from .presets import preset as _preset
+        return _preset(name, atlas=atlas, joint=joint)
+
     @classmethod
     @setup_anndata_dsp.dedent
     def setup_anndata(
