@@ -60,7 +60,6 @@ from scipy.stats import spearmanr, ttest_rel
 from tqdm.auto import tqdm
 
 from splicevi import SPLICEVI
-from splicevi.mean_bayes import MeanBayes
 
 import gc
 import re
@@ -1513,28 +1512,6 @@ def build_argparser():
 
     # Which eval blocks to run
     parser.add_argument(
-        "--mean_bayes_impute",
-        action="store_true",
-        default=False,
-        help=(
-            "If set, compute a mean-Bayes baseline alongside the model for imputation evals. "
-            "For each junction the baseline predicts the mean junc_ratio across all cells "
-            "that observed it (PSI > 0). Applied to both masked_impute and test_impute when "
-            "those blocks are enabled."
-        ),
-    )
-
-    parser.add_argument(
-        "--mean_bayes_group_by",
-        type=str,
-        default="None",
-        help=(
-            "obs field to use as the group prior for MeanBayes imputation (e.g. 'broad_cell_type'). "
-            "Set to 'None' (default) to use a single global prior."
-        ),
-    )
-
-    parser.add_argument(
         "--cross_fold_dummy_classifier",
         action="store_true",
         default=False,
@@ -1906,7 +1883,6 @@ def main():
     run_viz_test = latent_viz_splits in {"test", "both"}
     latent_viz_types = list(dict.fromkeys(args.latent_viz_types))  # preserves order, dedupes
     batch_key = None if (args.batch_key is None or str(args.batch_key).lower() == "none") else args.batch_key
-    mean_bayes_group_by = None if (args.mean_bayes_group_by is None or str(args.mean_bayes_group_by).lower() == "none") else args.mean_bayes_group_by
 
     os.makedirs(args.fig_dir, exist_ok=True)
 
@@ -3514,94 +3490,6 @@ def main():
 
                     del all_preds, junc_ratio_ds
                     torch.cuda.empty_cache()
-
-                    # ── MeanBayes baseline — evaluated on "dropped" entries only ──
-                    if args.mean_bayes_impute:
-                        dropped_rows, dropped_cols, orig_dropped, _ = case_eval_data.get(
-                            "dropped", (None, None, None, None)
-                        )
-                        if orig_dropped is not None and orig_dropped.size > 0:
-                            n_dropped = orig_dropped.size
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] Running MeanBayes "
-                                f"(group_by={mean_bayes_group_by}, "
-                                f"n_eval={n_dropped})...",
-                                flush=True,
-                            )
-                            mb = MeanBayes(
-                                ad_masked,
-                                junc_ratio_layer="junc_ratio",
-                                psi_mask_layer=mask_layer,
-                                group_by=mean_bayes_group_by,
-                            )
-                            mb_imputed = mb.get_imputed_splicing(return_numpy=True)
-                            del mb
-                            pred_mb = mb_imputed[dropped_rows, dropped_cols].astype(
-                                np.float32
-                            )
-                            del mb_imputed
-                            gc.collect()
-
-                            m_mb = _compute_imputation_metrics(orig_dropped, pred_mb)
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes n_eval = "
-                                f"{n_dropped} (same positions as SpliceVI dropped)"
-                            )
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI corr — "
-                                f"Pearson: {m_mb['pearson']:.4f}, "
-                                f"Spearman: {m_mb['spearman']:.4f}  (n={n_dropped})"
-                            )
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI L1 — "
-                                f"mean: {m_mb['l1_mean']:.4e}, "
-                                f"median: {m_mb['l1_median']:.4e}, "
-                                f"p90: {m_mb['l1_p90']:.4e}"
-                            )
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI range — "
-                                f"min: {m_mb['pred_min']:.4e}, max: {m_mb['pred_max']:.4e}"
-                            )
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] MeanBayes PSI SMAPE: "
-                                f"{m_mb['smape']:.4e}, cosine: {m_mb['cosine_sim']:.4f}, "
-                                f"minmax_ratio: {m_mb['minmax_ratio']:.4f}, "
-                                f"RMSE: {m_mb['rmse']:.4e}"
-                            )
-                            if run is not None:
-                                wandb.log({
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pearson_corr":  m_mb["pearson"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_spearman_corr": m_mb["spearman"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_mean":       m_mb["l1_mean"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_median":     m_mb["l1_median"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_l1_p90":        m_mb["l1_p90"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pred_min":      m_mb["pred_min"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_pred_max":      m_mb["pred_max"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_smape":         m_mb["smape"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_cosine_sim":    m_mb["cosine_sim"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_minmax_ratio":  m_mb["minmax_ratio"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/psi_rmse":          m_mb["rmse"],
-                                    f"impute-test/{tag}/dropped/mean_bayes/n_eval_entries":    n_dropped,
-                                })
-                            mb_scatter_path = os.path.join(
-                                args.fig_dir,
-                                f"impute_{tag}_dropped_mean_bayes_psi_density_scatter.png",
-                            )
-                            plot_psi_density_scatter(
-                                orig_dropped, pred_mb,
-                                pearson_r=m_mb["pearson"],
-                                l1_mean=m_mb["l1_mean"],
-                                out_path=mb_scatter_path,
-                                tag=f"{tag} — dropped entries (MeanBayes)",
-                                wandb=wandb if run is not None else None,
-                                run=run,
-                            )
-                            del pred_mb
-                        else:
-                            print(
-                                f"[EVAL/IMPUTE/{tag}/dropped] No dropped entries; "
-                                f"skipping MeanBayes eval."
-                            )
 
                     # ── Residuals CSV for "all" case ──────────────────────────
                     eval_rows_all, eval_cols_all, orig_all_case, pred_all_case = (
