@@ -12,9 +12,9 @@ Audited: `origin/main` at `651e44b` (7 Nov 2026). The paper recipe is `SPLICEVI.
   - Checked by running the docs call on main against a toy MuData.
 - **No page uses the paper presets.** The presets (`preset`, `filter_read_support`) were merged in `ea820d9` and are not mentioned anywhere in the docs.
 - **No page downloads data.** Examples read a local `train_data.h5mu` or cluster paths under `/gpfs/commons/...`. No public data or checkpoint exists yet; the Zenodo records are planned for submission (`SpliceVI-utils/manuscript/paper/ZENODO_MANIFEST.md`).
-- **The "sparse" preset still sets κ 0.1.** This conflicts with the 6 Nov decision that κ is out of the presets.
-  - The tutorials below use only `preset("paper")`.
-  - The "sparse" preset needs a code decision before release (see Decisions).
+- **The "sparse" preset on main still sets κ 0.1.** This is settled, not open: the 6 Nov decision takes κ out of both presets.
+  - The change is commit `93bcee5` on `kisaev/paper-presets` (PR #3), not yet merged into main. Once PR #3 merges, both presets have κ 0 and "sparse" equals "paper" unless `joint=True`.
+  - The tutorials below use `preset("paper")`, and κ 0 throughout.
 
 ## Audit
 
@@ -98,7 +98,7 @@ Not audited: the `tests/` folder (unit tests, not user material), and the deploy
    - Export a results table per comparison.
 7. **Sparse protocols:**
    - what changes for nuclei or 3′ data (metacells, read support counted in metacells);
-   - no κ, pending the decision below.
+   - κ 0, as in both presets after PR #3; `preset("sparse", joint=True)` for a joint reference + sparse model (batch key `technology`, dispersion `gene-batch`).
 
 ## Docs fixes that both tutorials need (separate PR, after approval)
 
@@ -111,8 +111,9 @@ Not audited: the `tests/` folder (unit tests, not user material), and the deploy
 
 ## Decisions
 
-1. **The "sparse" preset (κ 0.1):** remove it, or set κ 0 and keep it as the joint / low-depth setup? This is a code change on main (Smriti's presets PR) and has to happen before any tutorial mentions low-depth data.
-2. **Tutorial subset:** which cells (proposal: 3,000 Allen test cells from the Figure 2a cell groups), and add it to the Zenodo record 1 upload list.
-3. **MuData builder:** add a small `splicevi.build_mudata()` (moved from the SpliceVI-utils data stage), or keep it as notebook code.
-4. **Where tutorials live:** `tutorials/` in this repository and rendered in mkdocs (mkdocs-jupyter), or docs pages only.
-5. **When:** before submission (30 Nov), or after the Zenodo records exist. Proposal A needs the Zenodo DOIs to download from.
+Settled: κ 0 in both presets (6 Nov decision; `93bcee5`, PR #3). The tutorials need PR #3 merged before they mention the "sparse" preset.
+
+1. **Tutorial subset:** which cells (proposal: 3,000 Allen test cells from the Figure 2a cell groups), and add it to the Zenodo record 1 upload list.
+2. **MuData builder:** add a small `splicevi.build_mudata()` (moved from the SpliceVI-utils data stage), or keep it as notebook code.
+3. **Where tutorials live:** `tutorials/` in this repository and rendered in mkdocs (mkdocs-jupyter), or docs pages only.
+4. **When:** before submission (30 Nov), or after the Zenodo records exist. Proposal A needs the Zenodo DOIs to download from.
