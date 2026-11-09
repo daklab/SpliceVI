@@ -51,9 +51,10 @@ def test_tms_and_allen_differ_only_in_batch_and_adversary():
     assert {k for k in t["train"] if t["train"][k] != a["train"][k]} == {"adversarial_mixing"}
 
 
-def test_sparse_differs_from_paper_only_in_kappa():
+def test_sparse_equals_paper_without_joint():
+    """Decision 2026-11-06: no psi prior in either preset."""
     p, s = SPLICEVI.preset("paper"), SPLICEVI.preset("sparse")
-    assert {k for k in p["init"] if p["init"][k] != s["init"][k]} == {"psi_prior_pseudocount"} and s["init"]["psi_prior_pseudocount"] == 0.1
+    assert p["init"] == s["init"] and s["init"]["psi_prior_pseudocount"] == 0.0
     assert p["train"] == s["train"] and p["setup"] == s["setup"]
     j = SPLICEVI.preset("sparse", joint=True); assert j["init"]["dispersion"] == "gene-batch" and j["setup"]["batch_key"] == "technology"
 
@@ -81,8 +82,9 @@ def test_paper_preset_equals_live_checkpoint(atlas, name, kappa):
     assert a["registry_"]["setup_args"]["batch_key"] == cfg["setup"]["batch_key"]
 
 
-def test_sparse_preset_equals_thinned_kappa_checkpoint():
-    p = f"{MODELS}/allen_thinned_seed0_psiprior0.1_devp_rep1_s176/model.pt"
+def test_sparse_preset_equals_thinned_checkpoint():
+    """The in80 thinning model (kappa 0), Smriti's v2in80 run."""
+    p = f"{MODELS}/allen_thinned_v2in80_devp_rep1/model.pt"
     if not os.path.exists(p):
         pytest.skip("checkpoint not available")
     ck = torch.load(p, map_location="cpu", weights_only=False)["attr_dict"]["init_params_"]["non_kwargs"]

@@ -6,7 +6,8 @@
     ds = filter_read_support(model.differential_splicing(adata=mdata, groupby=..., group1=..., group2=..., **cfg["ds"]), **cfg["ds_filter"])
     de = model.differential_expression(adata=mdata, groupby=..., group1=..., group2=..., **cfg["de"])
 
-"paper" is the full-depth recipe, psi_prior_pseudocount 0. "sparse" is the same recipe for EasySci-like depth, psi_prior_pseudocount 0.1.
+"paper" is the full-depth recipe. "sparse" is the same recipe for EasySci-like depth; it differs only when joint=True.
+Both presets use psi_prior_pseudocount 0 (decision 2026-11-06: the psi prior stays in the code as an option, not in a preset).
 Values come from the stored records of the rep-1 checkpoints; tests/test_presets.py checks them against those records.
 """
 import copy
@@ -87,7 +88,7 @@ _DE = {"norm_expression_function": "zinb_expected", "fdr_target": 0.05}
 def preset(name, atlas=None, joint=False):
     """Return {"setup", "init", "train", "ds", "ds_filter", "de"} for a named recipe.
 
-    name: "paper" (full depth, psi_prior_pseudocount 0) or "sparse" (EasySci-like depth, psi_prior_pseudocount 0.1).
+    name: "paper" (full depth) or "sparse" (EasySci-like depth). Both psi_prior_pseudocount 0; set it on the model to use the psi prior.
     atlas ("paper" only): None or "allen" gives the Allen recipe (no batch key, no adversarial classifier). "tms" gives the TMS recipe
         (batch key mouse.id, adversarial classifier on z). The two checkpoints share every other setting.
     joint ("sparse" only): True for a reference + sparse model on one object: batch key technology, dispersion gene-batch.
@@ -102,7 +103,6 @@ def preset(name, atlas=None, joint=False):
     train["adversarial_mixing"] = atlas == "tms"
     batch_key = "mouse.id" if atlas == "tms" else None
     if name == "sparse":
-        init["psi_prior_pseudocount"] = 0.1
         if joint:
             init["dispersion"], batch_key = "gene-batch", "technology"
     return {"setup": {"batch_key": batch_key, "size_factor_key": "X_library_size"}, "init": init, "train": train, "ds": dict(_DS),
