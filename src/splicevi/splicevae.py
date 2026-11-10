@@ -240,6 +240,13 @@ class SPLICEVAE(BaseModuleClass):
     max_nobs : int, default -1
         Optional cap on the number of observed entries processed in each scatter chunk.
         A negative value disables chunking.
+    n_decoder_covariates : int, default 0
+        Number of decoder covariate inputs (e.g. 1 for technology: 0 = reference data, 1 = query data). Each adds
+        zero-initialized weights to the first hidden layer of both decoders (``decoder_covariate_weight_expression`` and
+        ``decoder_covariate_weight_splicing``, one column per covariate), so at zero weights the model is unchanged. The
+        value used for every cell is the buffer ``decoder_covariate_value`` unless ``decoder_covariate_batch`` (one row
+        per cell) is set, as during :meth:`SPLICEVI.finetune_decoders`. Added after training by
+        :meth:`add_decoder_covariates`; 0 = no inputs (the original architecture). Vanilla decoders only.
 
     # --- Modality mixing ---
     modality_weights : {"equal","cell","universal","concatenate","per_dimension_weighted_average"}, default "equal"
@@ -330,6 +337,7 @@ class SPLICEVAE(BaseModuleClass):
         psi_input: Literal["raw", "deviation"] = "raw",   # splicing-encoder input: raw psi, or deviation (psi - population psi, h(0) subtracted, fixed pool divisor)
         decoder_depth_covariates: bool = False,      # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders); STAGE5 s68.4a
         max_nobs: int = -1,
+        n_decoder_covariates: int = 0,               # zero-initialized covariate inputs into the first layer of both decoders (e.g. technology); 0 = none
 
         # --- Modality mixing ---
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
@@ -574,6 +582,48 @@ class SPLICEVAE(BaseModuleClass):
         
         # gate that controls how much of the "other" half a decoder can see (0=off, 1=on)
         self.register_buffer("cross_gate", torch.tensor(0.0))  # start closed during warmup
+
+        # decoder covariate inputs (e.g. technology), added at construction when loading a fine-tuned model
+        self.n_decoder_covariates = 0
+        self.decoder_covariate_batch = None   # (n_cells, n_decoder_covariates) for the current minibatch; None = decoder_covariate_value for every cell
+        if n_decoder_covariates > 0:
+            self.add_decoder_covariates(n_decoder_covariates)
+
+    def decoder_first_layers(self) -> dict:
+        """The first Linear layer of each decoder, which the decoder covariate inputs feed: {"expression": ..., "splicing": ...}."""
+        try:
+            return {"expression": self.z_decoder_expression.px_decoder.fc_layers[0][0],
+                    "splicing": self.z_decoder_splicing.ps_hidden.fc_layers[0][0]}
+        except AttributeError as exc:
+            raise NotImplementedError("decoder covariate inputs need the vanilla expression and splicing decoders") from exc
+
+    def add_decoder_covariates(self, n_covariates: int = 1) -> None:
+        """Add ``n_covariates`` zero-initialized covariate inputs to the first hidden layer of both decoders.
+
+        Same as appending the covariates to each decoder's input: the first layer's output gets ``covariates @ W.T``
+        with W = ``decoder_covariate_weight_<decoder>`` (hidden units x covariates), initialized at zero so the model's
+        output is unchanged until W is trained. The value fed for every cell is ``decoder_covariate_value`` (buffer,
+        saved with the model; zeros = reference data) unless ``decoder_covariate_batch`` holds one row per cell.
+        """
+        if self.n_decoder_covariates:
+            raise ValueError(f"this model already has {self.n_decoder_covariates} decoder covariate input(s)")
+        if n_covariates < 1:
+            raise ValueError("n_covariates must be >= 1")
+        layers = self.decoder_first_layers()
+        device = next(self.parameters()).device
+        for name, layer in layers.items():
+            setattr(self, f"decoder_covariate_weight_{name}",
+                    torch.nn.Parameter(torch.zeros(layer.out_features, n_covariates, device=device)))
+            layer.register_forward_hook(self._decoder_covariate_hook(name))
+        self.register_buffer("decoder_covariate_value", torch.zeros(n_covariates, device=device))
+        self.n_decoder_covariates = int(n_covariates)
+
+    def _decoder_covariate_hook(self, name: str):
+        def hook(module, inputs, output):
+            values = self.decoder_covariate_batch if self.decoder_covariate_batch is not None else self.decoder_covariate_value.unsqueeze(0)
+            weight = getattr(self, f"decoder_covariate_weight_{name}")
+            return output + values.to(device=output.device, dtype=output.dtype) @ weight.T
+        return hook
 
     def _splicing_cell_mask(self, x_spl: torch.Tensor, psi_mask: torch.Tensor | None) -> torch.Tensor:
         """Per-cell boolean: does this cell count as having the splicing modality?

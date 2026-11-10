@@ -210,7 +210,9 @@ def main():
     init_defaults = {
         name: param.default
         for name, param in init_sig.parameters.items()
-        if name not in ("self", "adata") and param.default is not inspect._empty
+        # n_decoder_covariates: set by SPLICEVI.finetune_decoders, not for training from scratch (the inputs would get a
+        # constant 0 and never train)
+        if name not in ("self", "adata", "n_decoder_covariates") and param.default is not inspect._empty
     }
 
     # ------------------------------

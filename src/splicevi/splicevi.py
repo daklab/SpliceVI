@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Iterable as IterableClass
+from contextlib import contextmanager
 from functools import partial
 from typing import TYPE_CHECKING
 
@@ -392,6 +393,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     max_nobs
         Optional cap on the number of observed (cell, junction) pairs processed in a single scatter chunk.
         Set to a negative value to disable chunking.
+    n_decoder_covariates
+        Number of zero-initialized covariate inputs into the first hidden layer of both decoders (default 0 = none).
+        Normally left at 0 and added by :meth:`finetune_decoders` (one input, technology: reference 0, query 1); a saved
+        fine-tuned model stores it, so :meth:`load` rebuilds the inputs. Vanilla decoders only.
 
     # --- Dataset shape/bookkeeping (inferred when possible) ---
     n_genes
@@ -466,6 +471,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
         decoder_depth_covariates: bool = False,                               # STAGE5 s68.4a: depth/detection covariates into both decoders
         max_nobs: int = -1,
+        n_decoder_covariates: int = 0,                                        # decoder covariate inputs (e.g. technology); set by finetune_decoders
 
         # --- Model-only helpers ---
         initialize_embeddings_from_pca: bool = False,
@@ -543,6 +549,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             psi_input=psi_input,
             decoder_depth_covariates=decoder_depth_covariates,
             max_nobs=max_nobs,
+            n_decoder_covariates=n_decoder_covariates,
 
             # extras
             **model_kwargs,
@@ -1905,6 +1912,169 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
         return result
 
+
+    # --- Decoder covariates and decoder fine-tuning (transfer to a new atlas) ---
+
+    def add_decoder_covariates(self, n_covariates: int = 1) -> None:
+        """Add zero-initialized covariate inputs to the first hidden layer of both decoders.
+
+        The model's output is unchanged until the covariate weights are trained (:meth:`finetune_decoders`). Recorded in
+        the model's init parameters (``n_decoder_covariates``), so :meth:`save` / :meth:`load` keep the inputs.
+
+        Parameters
+        ----------
+        n_covariates
+            Number of covariate inputs (1 for technology: reference 0, query 1).
+        """
+        self.module.add_decoder_covariates(n_covariates)
+        params = self.init_params_.get("non_kwargs", self.init_params_)
+        params["n_decoder_covariates"] = int(n_covariates)
+
+    def set_decoder_covariate(self, value) -> None:
+        """Value of the decoder covariate input(s) used for every cell from now on (saved with the model).
+
+        After :meth:`finetune_decoders` the model decodes as query data (``value = 1.0``); set ``0.0`` to decode as the
+        reference data. Affects every decoder output: normalized expression / splicing, differential expression and
+        differential splicing.
+
+        Parameters
+        ----------
+        value
+            A number (all covariates) or one value per covariate.
+        """
+        k = self.module.n_decoder_covariates
+        if not k:
+            raise ValueError("this model has no decoder covariate inputs (see finetune_decoders / add_decoder_covariates)")
+        value = torch.as_tensor(value, dtype=torch.float32).reshape(-1)
+        if value.numel() not in (1, k):
+            raise ValueError(f"expected 1 or {k} decoder covariate value(s), got {value.numel()}")
+        with torch.no_grad():
+            self.module.decoder_covariate_value.copy_(value.expand(k))
+
+    @contextmanager
+    def decoder_covariate(self, value):
+        """Context manager: decode with this decoder covariate value inside the block, then restore the previous one.
+
+        Example
+        -------
+        >>> with model.decoder_covariate(0.0):   # decode the query cells as if they were reference data
+        ...     psi_as_reference = model.get_normalized_splicing_DM(adata=query_mdata)
+        """
+        previous = self.module.decoder_covariate_value.detach().clone()
+        self.set_decoder_covariate(value)
+        try:
+            yield self
+        finally:
+            with torch.no_grad():
+                self.module.decoder_covariate_value.copy_(previous)
+
+    def finetune_decoders(
+        self,
+        query_mdata: MuData,
+        reference_mdata: MuData,
+        n_query_per_step: int = 32,
+        n_reference_per_step: int = 128,
+        lr: float = 1e-4,
+        max_epochs: int = 300,
+        early_stopping_patience: int = 30,
+        validation_fraction: float = 0.1,
+        seed: int = 20261137,
+        set_torch_seed: bool = True,
+        max_minutes: float | None = None,
+        checkpoint_dir: str | None = None,
+        fix_depth_inputs: bool = True,
+        query_covariate_value: float = 1.0,
+        reference_covariate_value: float = 0.0,
+    ) -> pd.DataFrame:
+        """Adapt a trained model to a new atlas by fine-tuning only its decoders, plus one technology input.
+
+        Use when this model was trained on a reference atlas (e.g. Allen Brain, deep Smart-seq) and you want its
+        expression and splicing estimates for a new, sparser atlas of the same tissue (e.g. EasySci, single-nucleus 3')
+        without retraining from scratch. The encoders are not changed, so query cells are placed in the reference
+        latent space; the decoders learn the query data's expression and splicing levels. Defaults are the same as what's used in 
+        the paper's EasySci model.
+
+        What happens:
+
+        1. One zero-initialized decoder covariate input is added to the first hidden layer of both decoders
+           (technology: ``reference_covariate_value`` for reference cells, ``query_covariate_value`` for query cells).
+           At zero weights the model is the reference model.
+        2. Everything is frozen except the two decoders and the covariate weights. Kept from the reference model: the
+           encoders, junction embeddings and latent mixing, the deviation input's population PSI and pool divisor,
+           the per-ATSE splicing concentrations and the gene dispersions (re-learning the last two on the query data
+           predicted held-out query reads worse in the paper's tests, so it is not offered).
+        3. With ``fix_depth_inputs`` (models with ``decoder_depth_covariates``), the decoders' depth inputs are fixed
+           at the reference training mean for every cell, since the reference depth statistics do not describe the
+           query data. The cross-modality gate is set open, as at the end of training.
+        4. Each step uses ``n_query_per_step`` query cells and ``n_reference_per_step`` reference cells (the reference
+           "replay" keeps the decoders fitting the reference); loss = query loss + reference loss; Adam at ``lr``.
+        5. A random ``validation_fraction`` of the query cells is held out for early stopping (patience
+           ``early_stopping_patience`` epochs, at most ``max_epochs``, optional wall-clock limit ``max_minutes``).
+        6. The best state is restored and the model is left decoding as query data (decoder covariate =
+           ``query_covariate_value``), ready for :meth:`differential_splicing` etc. on the query cells.
+
+        Calling it again continues from the current weights with a fresh optimizer. Training a fine-tuned model with
+        :meth:`train` is not supported: every cell would get ``decoder_covariate_value``, so the covariate weights
+        would act as a plain bias.
+
+        Parameters
+        ----------
+        query_mdata
+            The new atlas (e.g. EasySci training metacells) in this model's gene and junction space (same genes, same
+            junction ids and ATSE assignment), with the layers this model was trained on: expression counts
+            (``length_norm``; raw counts for UMI data), library size (``X_library_size``), junction and ATSE counts,
+            ``junc_ratio`` and ``psi_mask``. If not yet set up, it is set up with this model's setup arguments (as
+            :meth:`load` does). The paper's construction from model-ready AnnData files is ``units_mudata`` in
+            SpliceVI-utils ``eval/easysci_transfer/v9/finetune_v9.py``.
+        reference_mdata
+            A replay set of the data this model was trained on (e.g. 20,000 Allen training cells), same layers.
+        n_query_per_step, n_reference_per_step
+            Query and reference cells per optimization step (paper: 32 and 128).
+        lr
+            Adam learning rate.
+        max_epochs, early_stopping_patience
+            Epochs over the query training cells; stop when the validation loss has not improved for this many epochs.
+        validation_fraction
+            Share of query cells held out (never trained on) to decide when to stop.
+        seed
+            Seed of the validation split, the minibatch order and the reference cells per step (numpy), and, with
+            ``set_torch_seed``, of torch's global random state (latent sampling and decoder dropout during
+            fine-tuning). GPU arithmetic is not bit-deterministic, so reruns agree closely but not exactly.
+        set_torch_seed
+            Call ``torch.manual_seed(seed)`` (changes torch's global random state). False when the caller seeded torch
+            already, e.g. before loading the model, as the paper's v9 run did.
+        max_minutes
+            Optional wall-clock limit (the best state so far is kept). Keep it below a job's time limit.
+        checkpoint_dir
+            If set, the best module state is also written to ``<checkpoint_dir>/module_state_best.pt`` at every
+            improvement, so a run killed from outside (e.g. a job time limit) keeps its best state.
+        fix_depth_inputs
+            Fix the decoders' depth inputs at the reference training mean (models with decoder depth covariates).
+        query_covariate_value, reference_covariate_value
+            Values of the technology input for query and reference cells.
+
+        Returns
+        -------
+        Training history: one row per epoch (``epoch``, ``train_loss``, ``validation_loss``; epoch -1 = before
+        training). Also stored as ``finetune_history_``, with the settings and outcome in ``finetune_params_``; both
+        are saved by :meth:`save`.
+
+        Examples
+        --------
+        >>> model = SPLICEVI.load(reference_model_dir, adata=query_mdata)
+        >>> model.to_device("cuda")
+        >>> history = model.finetune_decoders(query_mdata, reference_mdata)
+        >>> model.save(out_dir)                         # SPLICEVI.load(out_dir, adata=query_mdata) decodes as query
+        >>> ds = model.differential_splicing(adata=query_mdata, groupby="broad_cell_type", group1="A", group2="B")
+        """
+        from .finetune import finetune_decoders as _finetune_decoders
+        return _finetune_decoders(self, query_mdata, reference_mdata, n_query_per_step=n_query_per_step,
+                                  n_reference_per_step=n_reference_per_step, lr=lr, max_epochs=max_epochs,
+                                  early_stopping_patience=early_stopping_patience,
+                                  validation_fraction=validation_fraction, seed=seed, set_torch_seed=set_torch_seed,
+                                  max_minutes=max_minutes, checkpoint_dir=checkpoint_dir,
+                                  fix_depth_inputs=fix_depth_inputs, query_covariate_value=query_covariate_value,
+                                  reference_covariate_value=reference_covariate_value)
 
     @staticmethod
     def preset(name, atlas=None, joint=False):
