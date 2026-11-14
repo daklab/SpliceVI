@@ -333,6 +333,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         STAGE5 §128 ablation. If True, the splicing encoder receives no input and no cell counts as having splicing in the
         latent mix (joint latent = expression posterior); the decoder depth covariates still use the observed-junction mask.
         Use with ``splicing_loss_weight=0`` for an expression-only model with the SpliceVI architecture. Default False.
+    splicing_only
+        STAGE5 §200. If True, no cell counts as having expression: the joint latent is the splicing posterior (also during
+        warmup), the expression reconstruction loss is 0 and the expression encoder, library-size encoder and expression
+        decoder get no gradient. A splicing-only model with the SpliceVI splicing encoder and decoder. Default False.
     variance_mixing
         How the two encoders' variances are combined, for every ``modality_weights`` except
         ``"concatenate"``: ``"sqrt_weights"`` (default; for equal/cell/universal the MultiVI
@@ -449,6 +453,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
         mask_cells_without_splicing: bool = False,
         splicing_encoder_off: bool = False,
+        splicing_only: bool = False,                     # STAGE5 §200
         expr_encoder_input: Literal["as_is", "log1p_cp10k"] = "as_is",   # STAGE5 §163
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
@@ -540,6 +545,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             variance_mixing=variance_mixing,
             mask_cells_without_splicing=mask_cells_without_splicing,
             splicing_encoder_off=splicing_encoder_off,
+            splicing_only=splicing_only,
             expr_encoder_input=expr_encoder_input,
             n_batch=self.summary_stats.n_batch,
             n_obs=adata.n_obs,

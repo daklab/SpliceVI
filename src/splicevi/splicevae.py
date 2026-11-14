@@ -357,6 +357,7 @@ class SPLICEVAE(BaseModuleClass):
         mask_cells_without_splicing: bool = False,
         expr_encoder_input: Literal["as_is", "log1p_cp10k"] = "as_is",   # STAGE5 §163: "log1p_cp10k" = log1p(x / rowsum(x) * 1e4) into the EXPRESSION ENCODER only (likelihood, size factor, depth covariates, decoders unchanged)
         splicing_encoder_off: bool = False,          # STAGE5 §128: splicing encoder gets no input and no weight in the latent mix (depth covariates keep the observed mask)
+        splicing_only: bool = False,                 # STAGE5 §200: no cell counts as having expression; joint latent = splicing posterior; expression loss 0 (expression parts get no gradient)
 
         # --- Misc ---
         **model_kwargs,
@@ -604,6 +605,9 @@ class SPLICEVAE(BaseModuleClass):
         self.variance_mixing = variance_mixing
         self.mask_cells_without_splicing = bool(mask_cells_without_splicing)
         self.splicing_encoder_off = bool(splicing_encoder_off)
+        self.splicing_only = bool(splicing_only)
+        if self.splicing_only and (self.splicing_encoder_off or modality_weights == "concatenate"):
+            raise ValueError("splicing_only needs the splicing encoder on and a mixed latent (modality_weights != 'concatenate')")
         if expr_encoder_input not in ("as_is", "log1p_cp10k"): raise ValueError("expr_encoder_input must be 'as_is' or 'log1p_cp10k'")
         self.expr_encoder_input = expr_encoder_input
         self.n_modalities = int(n_input_genes > 0) + int(n_input_junctions > 0)
@@ -632,6 +636,13 @@ class SPLICEVAE(BaseModuleClass):
         
         # gate that controls how much of the "other" half a decoder can see (0=off, 1=on)
         self.register_buffer("cross_gate", torch.tensor(0.0))  # start closed during warmup
+
+    def _expression_cell_mask(self, x_expr: torch.Tensor) -> torch.Tensor:
+        """Per-cell boolean: does this cell count as having the expression modality? Original: total counts > 0.
+        STAGE5 §200 ``splicing_only``: no cell (joint latent = splicing posterior, expression reconstruction loss 0)."""
+        if getattr(self, "splicing_only", False):
+            return torch.zeros(x_expr.shape[0], dtype=torch.bool, device=x_expr.device)
+        return x_expr.sum(dim=1) > 0
 
     def _splicing_cell_mask(self, x_spl: torch.Tensor, psi_mask: torch.Tensor | None) -> torch.Tensor:
         """Per-cell boolean: does this cell count as having the splicing modality?
@@ -743,7 +754,7 @@ class SPLICEVAE(BaseModuleClass):
         # Get Data and Additional Covs
         x_expr = x[:, : self.n_input_genes]
         x_spl = x[:, self.n_input_genes : (self.n_input_genes + self.n_input_junctions)]
-        mask_expr = x_expr.sum(dim=1) > 0
+        mask_expr = self._expression_cell_mask(x_expr)
         mask_spl = self._splicing_cell_mask(x_spl, mask)
 
         # STAGE5 s68.9: hide a fraction of each cell's observed events from the ENCODER only (training mode only)
@@ -870,6 +881,8 @@ class SPLICEVAE(BaseModuleClass):
             """Joint posterior (qz_m, qz_v) from the two per-modality posteriors; the original
             mixing code, unchanged, wrapped so it can also be evaluated with the splicing
             posterior detached (STAGE5 section 46)."""
+            if getattr(self, "splicing_only", False):   # STAGE5 §200: the splicing posterior alone, also during warmup (no routing coin)
+                return qzm_spl, qzv_spl
             if warmup_only_splicing:
                 # During warmup, route only the splicing posterior into the shared latent.
                 # This makes both decoders use splicing information in the generative step.
@@ -1244,7 +1257,7 @@ class SPLICEVAE(BaseModuleClass):
             psi_mask = psi_mask.to(torch.bool)
 
         # Create masks for the modality alignment penalty
-        mask_expr = x_expr.sum(dim=1) > 0
+        mask_expr = self._expression_cell_mask(x_expr)
         mask_spl = self._splicing_cell_mask(x_spl, psi_mask)
     
         # Compute Expression loss
