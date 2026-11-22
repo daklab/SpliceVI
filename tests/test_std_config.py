@@ -5,8 +5,7 @@ import pytest
 import torch
 from scvi import REGISTRY_KEYS
 
-from splicevi.partialvae import group_logsumexp, subtract_group_logsumexp
-from splicevi.splicevae import SPLICEVAE
+from splicevi.splicevae import SPLICEVAE, group_logsumexp, subtract_group_logsumexp
 
 N, G, J, A, LAT = 16, 40, 60, 20, 6
 CODES = np.repeat(np.arange(A), 3)

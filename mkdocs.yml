@@ -57,7 +57,6 @@ nav:
   - Data Format: data-format.md
   - Models:
     - SpliceVI: models/splicevi.md
-    - EDDISPLICE: models/eddisplice.md
   - Outputs:
     - Latent Space: outputs/latent.md
     - Imputed Splicing & Expression: outputs/imputed.md

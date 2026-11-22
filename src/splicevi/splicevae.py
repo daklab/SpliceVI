@@ -13,9 +13,286 @@ from scvi import REGISTRY_KEYS
 from scvi.distributions import NegativeBinomial, NegativeBinomialMixture, ZeroInflatedNegativeBinomial
 from scvi.module.base import BaseModuleClass, LossOutput, auto_move_data
 from scvi.nn import DecoderSCVI, Encoder, FCLayers, LinearDecoderSCVI
-from .partialvae import PartialEncoderEDDIFaster, LinearDecoder, group_logsumexp, subtract_group_logsumexp, nbetaln
+from torch.special import gammaln
 
 
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# Building blocks of the splicing branch: grouped log-sum-exp over the junctions of each ATSE, the log-beta helper of
+# the Dirichlet-multinomial likelihood, the partial (missing-data aware) splicing encoder and the linear decoder.
+# ----------------------------------------------------------------------------------------------------------------------
+
+def group_logsumexp(A, B):
+    """
+    Computes the log-sum-exp of B, grouped by A.
+    A is a sparse matrix (must be coalesced already!) with shape (P, G), where P is the number of variables (junctions)
+    and G is the number of groups (ATSEs). B is a dense matrix with shape (N, P), where
+    N is the number of samples (cells). The result is a dense matrix with shape (N, G).
+    """
+    idx_p, idx_g = A.indices()              # (2, P), since each var belongs to one group
+    idx_p = idx_p.to(B.device)
+    idx_g = idx_g.to(B.device)
+
+    N, P = B.shape
+    G = A.shape[1]
+
+    # (N, P) → gather relevant group index for each variable
+    group_idx = torch.empty(P, dtype=torch.long, device=B.device)
+    group_idx[idx_p] = idx_g
+
+    # Get max within each group
+    max_B = torch.full((N, G), float('-inf'), device=B.device)
+    max_B.scatter_reduce_(1, group_idx.expand(N, -1), B, reduce='amax')
+
+    # Center B by group max
+    B_centered = B - max_B.gather(1, group_idx.expand(N, -1))
+
+    exp_B_centered = torch.exp(B_centered)
+
+    # Sum exp over each group
+    sum_exp = torch.zeros((N, G), device=B.device)
+    sum_exp.scatter_add_(1, group_idx.expand(N, -1), exp_B_centered)
+
+    return torch.log(sum_exp + 1e-8) + max_B
+
+def subtract_group_logsumexp(A, B, group_logsumexp):
+    """
+    Subtracts the group log-sum-exp from each element in B, grouped by A.
+    A is a sparse matrix (must be coalesced already!) with shape (P, G), where P is the number of variables (junctions)
+    and G is the number of groups (ATSEs). B is a dense matrix with shape (N, P), where
+    N is the number of samples (cells). The result is a dense matrix with shape (N, P).
+    """
+    idx_p, idx_g = A.indices()
+    idx_g = idx_g.to(B.device)
+    N = B.size(0)
+    return B - group_logsumexp[:, idx_g]
+
+def nbetaln(count, alpha):  
+    """
+    Computes log(count * beta(count, alpha)) == gammaln(count + 1) + gammaln(alpha) - gammaln(count + alpha). 
+    Note this is zero when count == 0, which could potentially be used to improve efficiency.
+    """
+    return gammaln(alpha) + gammaln(count+1.) - gammaln(alpha + count)
+
+
+class PartialEncoderEDDIFaster(nn.Module):
+    """
+    Fast EDDI partial encoder, batched.
+
+    Shapes / notation:
+      B = batch size (cells)
+      J = number of junctions
+      D = code_dim
+      Z = latent_dim
+
+    """
+    def __init__(
+        self,
+        input_dim: int,
+        code_dim: int,
+        h_hidden_dim: int,
+        encoder_hidden_dim: int,
+        latent_dim: int,
+        dropout_rate: float = 0.0,
+        n_cat_list: Iterable[int] | None = None,
+        n_cont: int = 0,
+        inject_covariates: bool = True,
+        pool_mode: Literal["mean", "sum"] = "mean",
+        max_nobs: int = -1,
+        encoder_n_layers: int = 2,    
+        psi_input: Literal["raw", "deviation"] = "raw",   # "deviation": psi - population psi, h(0) subtracted, fixed pool divisor
+    ):
+        super().__init__()
+        ...
+
+        super().__init__()
+        self.code_dim = code_dim
+        self.pool_mode = pool_mode
+        self.psi_input = psi_input
+        if psi_input == "deviation":
+            self.register_buffer("pop_psi", torch.zeros(input_dim))   # only registered when used, so older checkpoints still load
+        if psi_input == "deviation":   # pooled = sum_j (h_j - h(0)) / pool_divisor (training median of observed junctions per cell)
+            if pool_mode != "mean":
+                raise ValueError("psi_input='deviation' replaces the pooling divisor; use pool_mode='mean'")
+            self.register_buffer("pool_divisor", torch.ones(()))
+        self.n_cat_list = [n for n in (n_cat_list or []) if n > 1]
+        self.n_cont = n_cont
+        self.inject_covariates = inject_covariates
+        self.max_nobs = max_nobs
+
+        # Per-junction embedding table (J, D)
+        self.feature_embedding = nn.Parameter(torch.randn(input_dim, code_dim))
+
+        # h-layer: [psi (1) | F_j (D)] -> D
+        in_dim_h = 1 + code_dim
+
+        
+
+        self.h_layer = nn.Sequential(
+            nn.Linear(in_dim_h, h_hidden_dim),
+            nn.LayerNorm(h_hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout_rate),
+            nn.Linear(h_hidden_dim, code_dim),
+            nn.LayerNorm(code_dim),
+            nn.ReLU(),
+        )
+
+        # Cell-level encoder MLP → (mu, logvar)
+        self.encoder_mlp = FCLayers(
+            n_in=code_dim,
+            n_out=2 * latent_dim,
+            n_cat_list=n_cat_list or [],
+            n_cont=n_cont,
+            n_layers=encoder_n_layers,
+            n_hidden=encoder_hidden_dim,
+            dropout_rate=dropout_rate,
+            use_batch_norm=False,
+            use_layer_norm=True,
+            inject_covariates=inject_covariates,
+        )
+
+
+    def _h(self, h_in: torch.Tensor) -> torch.Tensor:
+        """Per-junction network. With psi_input="deviation" the output at zero deviation, h(0), is subtracted, so an observed junction at its
+        population ratio contributes exactly 0. Dropout inside h is skipped in this mode (both passes): with dropout the two passes would draw
+        different masks, h(x) - h(0) would not be 0 at the population ratio during training, and detection would leak back in. Dropout still
+        applies in the per-cell MLP after pooling and elsewhere in the model; raw mode is unchanged."""
+        if self.psi_input != "deviation":
+            return self.h_layer(h_in)
+        def run(v):
+            for m in self.h_layer:
+                if not isinstance(m, nn.Dropout):
+                    v = m(v)
+            return v
+        out = run(h_in) - run(torch.zeros(1, h_in.shape[1], device=h_in.device, dtype=h_in.dtype))
+        # exact zero where the deviation is exactly zero (the two passes can differ at float rounding, ~1e-7, across GEMM batch sizes)
+        return out * (h_in[:, :1] != 0).to(out.dtype)
+
+    def forward(
+    self,
+    x: torch.Tensor,                 # (B, J)
+    mask: torch.Tensor,              # (B, J), 1=observed, 0=missing
+    *cat_list: torch.Tensor,
+    cont: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Observed-only path:
+        - Gather (b, j) pairs where mask==1
+        - Run h_layer only on those rows
+        - Sum (or mean) per cell
+        - Encode to (mu, logvar)
+        """
+        B, J = x.shape
+        D = self.code_dim
+        device = x.device
+        dtype  = x.dtype
+
+        # Ensure boolean mask (no grad)
+        mask_bool = mask.bool()
+
+        # Find observed indices (vectors of shape (N_obs,))
+        b_idx, j_idx = mask_bool.nonzero(as_tuple=True)
+        N_obs = b_idx.numel()
+        F_j = self.feature_embedding
+
+        # Early-exit if nothing is observed
+        if N_obs == 0:
+            pooled = torch.zeros(B, D, device=device, dtype=dtype)
+            mu_logvar = self.encoder_mlp(pooled, *cat_list, cont=cont)  # (B, 2Z)
+            mu, logvar = mu_logvar.chunk(2, dim=-1)
+            return mu, logvar
+
+        # Precompute a normalized copy once (avoids re-normalizing the same rows repeatedly)
+        # Do this where F_j is defined / available before the if/else:
+        F_j_norm = F.normalize(F_j, p=2, dim=1, eps=1e-8)   # (J, D)
+
+        if (self.max_nobs < 0) or (N_obs <= self.max_nobs):
+            # ---- Original (no chunking) path ----
+            x_obs = x[b_idx, j_idx].unsqueeze(1)                  # (N_obs, 1)
+            if self.psi_input == "deviation":
+                x_obs = x_obs - self.pop_psi[j_idx].unsqueeze(1)     # deviation from population psi
+            F_obs = F_j_norm.index_select(0, j_idx)               # (N_obs, D), already L2-normalized
+
+            F_obs_scaled = F_obs * x_obs                          # broadcast scale by usage ratio
+            h_in  = torch.cat([x_obs, F_obs_scaled], dim=1)       # (N_obs, 1 + D)
+            h_obs = self._h(h_in)                                 # (N_obs, D)
+
+            pooled = torch.zeros(B, D, device=device, dtype=h_obs.dtype)
+            pooled.index_add_(0, b_idx, h_obs)
+
+        else:
+            # ---- Chunked path: same result, steadier memory ----
+            pooled = None
+            for start in range(0, N_obs, self.max_nobs):
+                end = min(start + self.max_nobs, N_obs)
+
+                bi = b_idx[start:end]                             # (n,)
+                jj = j_idx[start:end]                             # (n,)
+
+                x_chunk = x[bi, jj].unsqueeze(1)                  # (n, 1)
+                if self.psi_input == "deviation":
+                    x_chunk = x_chunk - self.pop_psi[jj].unsqueeze(1)
+                F_chunk = F_j_norm.index_select(0, jj)            # (n, D), already L2-normalized
+
+                F_chunk_scaled = F_chunk * x_chunk                # scale by usage ratio
+                h_in  = torch.cat([x_chunk, F_chunk_scaled], dim=1)  # (n, 1 + D)
+                h_out = self._h(h_in)                                # (n, D)
+
+                if pooled is None:
+                    pooled = torch.zeros(B, D, device=device, dtype=h_out.dtype)
+                pooled.index_add_(0, bi, h_out)
+
+
+        # Mean pooling if requested
+        if self.psi_input == "deviation":   # fixed divisor, so the pool does not carry the event count
+            pooled = pooled / self.pool_divisor
+        elif self.pool_mode == "mean":
+            # counts per cell (B,), keep at least 1 to avoid division by zero
+            counts = torch.bincount(b_idx, minlength=B).to(pooled.dtype).view(B, 1).clamp_min_(1)
+            pooled = pooled / counts
+
+        # Final per-cell projection → (mu, logvar)
+        mu_logvar = self.encoder_mlp(pooled, *cat_list, cont=cont)  # (B, 2Z)
+        mu, logvar = mu_logvar.chunk(2, dim=-1)
+        return mu, logvar
+
+
+class LinearDecoder(nn.Module):
+    def __init__(
+        self,
+        latent_dim: int,
+        output_dim: int,
+        n_cat_list: Iterable[int] | None = None,
+        n_cont: int = 0,
+    ):
+        super().__init__()
+        # track covariates exactly as in encoder
+        self.n_cat_list = [n for n in (n_cat_list or []) if n > 1]
+        self.n_cont     = n_cont
+        total_cov       = sum(self.n_cat_list) + self.n_cont
+
+        # single linear layer: input = [z, covariates]
+        self.linear = nn.Linear(latent_dim + total_cov, output_dim)
+
+    def forward(
+        self,
+        z: torch.Tensor,              # (B, latent_dim)
+        *cat_list: torch.Tensor,      # each (B,1)
+        cont: torch.Tensor | None = None,  # (B, n_cont)
+    ) -> torch.Tensor:
+        
+        covs: list[torch.Tensor] = []
+        if cont is not None:
+            covs.append(cont)
+        for n_cat, cat in zip(self.n_cat_list, cat_list):
+            # one-hot encode each categorical and append
+            oh = F.one_hot(cat.squeeze(-1), n_cat).float()
+            covs.append(oh)
+        # final input to linear: (B, latent_dim + total_cov)
+        inp = torch.cat([z, *covs], dim=1) if covs else z
+        return self.linear(inp)
 
 
 def _softplus_inverse(x: torch.Tensor) -> torch.Tensor:
