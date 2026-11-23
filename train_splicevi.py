@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-train_multivisplice_basic.py
+train_splicevi.py
 
 Training pipeline for SPLICEVI:
 
@@ -21,10 +21,8 @@ import inspect
 import argparse
 from datetime import datetime, timezone
 
-import scanpy as sc
 from splicevi import SPLICEVI
 import mudata as mu
-import numpy as np
 import torch
 
 
@@ -79,7 +77,7 @@ def write_experiment_fragment(experiment_dir, model_dir, full_config, run):
 
 def build_argparser(init_defaults, train_defaults):
     parser = argparse.ArgumentParser(
-        "train_multivisplice_basic",
+        "train_splicevi",
         description=(
             "Minimal trainer for SPLICEVI: "
             "loads a MuData file, sets up the model, trains, and saves the model."
@@ -143,7 +141,7 @@ def build_argparser(init_defaults, train_defaults):
         help="How often (in training steps) to log model parameters/gradients.",
     )
 
-    # STAGE5 section 58: seed torch, numpy and Python's random (the warmup coin flip) via scvi.settings.seed
+    # Seed torch, numpy and Python's random (used for the KL warm-up modality choice) via scvi.settings.seed
     parser.add_argument(
         "--seed",
         type=int,
@@ -252,7 +250,7 @@ def main():
     print(f"[DATA] # features (rna)   : {mdata['rna'].n_vars}")
     print(f"[DATA] # features (splice): {mdata['splicing'].n_vars}")
 
-    # Fixed layer configuration (same as your main script)
+    # Layer names of the model-ready MuData files
     x_layer = "junc_ratio"
     junction_counts_layer = "cell_by_junction_matrix"
     cluster_counts_layer = "cell_by_cluster_matrix"
@@ -282,7 +280,7 @@ def main():
         psi_mask_layer=mask_layer,
         modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
     )
-    print("[MODEL] AnnData setup complete.")
+    print("[MODEL] MuData setup complete.")
 
     # ------------------------------
     # 5. Initialize model

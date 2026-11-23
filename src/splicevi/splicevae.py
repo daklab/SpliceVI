@@ -1,8 +1,19 @@
+"""SPLICEVAE: the variational autoencoder module behind SPLICEVI.
+
+Two encoders (gene expression and junction usage) whose posteriors are mixed into one joint latent space, and two
+decoders: a ZINB (or NB / Poisson) decoder for expression and a decoder of junction usage per ATSE with a
+Dirichlet-multinomial (or binomial / beta-binomial) likelihood on the junction read counts. The model class
+(:class:`splicevi.SPLICEVI`) builds this module from the registered MuData and passes every setting explicitly.
+
+The file also holds the components of the splicing branch: the grouped log-sum-exp over the junctions of each ATSE,
+the partial (missing-data aware) splicing encoder and the linear decoders.
+"""
 from collections.abc import Iterable
 from typing import Literal
 
-import numpy as np
 import random
+
+import numpy as np
 import torch
 from torch import nn
 from torch.distributions import Normal, Poisson
@@ -10,12 +21,10 @@ from torch.distributions import kl_divergence as kld
 from torch.nn import functional as F
 
 from scvi import REGISTRY_KEYS
-from scvi.distributions import NegativeBinomial, NegativeBinomialMixture, ZeroInflatedNegativeBinomial
+from scvi.distributions import NegativeBinomial, ZeroInflatedNegativeBinomial
 from scvi.module.base import BaseModuleClass, LossOutput, auto_move_data
 from scvi.nn import DecoderSCVI, Encoder, FCLayers, LinearDecoderSCVI
 from torch.special import gammaln
-
-
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -63,12 +72,11 @@ def subtract_group_logsumexp(A, B, group_logsumexp):
     and G is the number of groups (ATSEs). B is a dense matrix with shape (N, P), where
     N is the number of samples (cells). The result is a dense matrix with shape (N, P).
     """
-    idx_p, idx_g = A.indices()
+    _, idx_g = A.indices()
     idx_g = idx_g.to(B.device)
-    N = B.size(0)
     return B - group_logsumexp[:, idx_g]
 
-def nbetaln(count, alpha):  
+def nbetaln(count, alpha):
     """
     Computes log(count * beta(count, alpha)) == gammaln(count + 1) + gammaln(alpha) - gammaln(count + alpha). 
     Note this is zero when count == 0, which could potentially be used to improve efficiency.
@@ -100,12 +108,9 @@ class PartialEncoderEDDIFaster(nn.Module):
         inject_covariates: bool = True,
         pool_mode: Literal["mean", "sum"] = "mean",
         max_nobs: int = -1,
-        encoder_n_layers: int = 2,    
+        encoder_n_layers: int = 2,
         psi_input: Literal["raw", "deviation"] = "raw",   # "deviation": psi - population psi, h(0) subtracted, fixed pool divisor
     ):
-        super().__init__()
-        ...
-
         super().__init__()
         self.code_dim = code_dim
         self.pool_mode = pool_mode
@@ -209,7 +214,7 @@ class PartialEncoderEDDIFaster(nn.Module):
         F_j_norm = F.normalize(F_j, p=2, dim=1, eps=1e-8)   # (J, D)
 
         if (self.max_nobs < 0) or (N_obs <= self.max_nobs):
-            # ---- Original (no chunking) path ----
+            # ---- All observed entries at once (no chunking) ----
             x_obs = x[b_idx, j_idx].unsqueeze(1)                  # (N_obs, 1)
             if self.psi_input == "deviation":
                 x_obs = x_obs - self.pop_psi[j_idx].unsqueeze(1)     # deviation from population psi
@@ -491,7 +496,7 @@ class SPLICEVAE(BaseModuleClass):
         Minimum concentration: ``phi = phi_floor + softplus(log_phi_j)``. Additive so the
         gradient stays smooth (a clamp would kill it below the floor). 0.0 = no floor.
     phi_prior : {"l2_log","gamma","none"}, default "l2_log"
-        Regularizer on the concentration. ``"l2_log"`` is the original L2 pull of
+        Regularizer on the concentration. ``"l2_log"`` is an L2 pull of
         ``log_phi_j`` toward 0 (weight ``lambda_prior``, divided by batch size).
         ``"gamma"`` is a MAP Gamma(``phi_prior_shape``, ``phi_prior_rate``) prior on the
         effective phi, scaled by 1/n_obs (proper MAP scaling for a per-cell-mean loss).
@@ -500,7 +505,7 @@ class SPLICEVAE(BaseModuleClass):
         Pseudo-count prior on the decoded PSI (dirichlet_multinomial only): adds
         ``-psi_prior_pseudocount * sum_j pi_j log p_j`` per cell, i.e. that many virtual reads per ATSE distributed as
         the population PSI ``pi`` (buffer ``psi_prior_pop``, filled by the model class). Entries without reads are pulled
-        to the population PSI; entries with reads are dominated by their data. 0 = off (original behavior).
+        to the population PSI; entries with reads are dominated by their data. 0 = off.
     phi_prior_shape, phi_prior_rate : float, defaults 2.0, 0.1
         Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).
     phi_init : {"constant","log100","prior"}, default "constant"
@@ -540,7 +545,7 @@ class SPLICEVAE(BaseModuleClass):
         ``decoder_covariate_weight_splicing``, one column per covariate), so at zero weights the model is unchanged. The
         value used for every cell is the buffer ``decoder_covariate_value`` unless ``decoder_covariate_batch`` (one row
         per cell) is set, as during :meth:`SPLICEVI.finetune_decoders`. Added after training by
-        :meth:`add_decoder_covariates`; 0 = no inputs (the original architecture). Vanilla decoders only.
+        :meth:`add_decoder_covariates`; 0 = no covariate inputs. Vanilla decoders only.
 
     # --- Modality mixing ---
     modality_weights : {"equal","cell","universal","concatenate","per_dimension_weighted_average"}, default "equal"
@@ -553,7 +558,7 @@ class SPLICEVAE(BaseModuleClass):
     mask_cells_without_splicing : bool, default False
         If True, a cell with no observed junction (``psi_observed_mask`` all 0) is treated as
         lacking the splicing modality: it gets no splicing weight in the latent mix and is
-        excluded from the modality-alignment penalty. If False (original behavior) every cell
+        excluded from the modality-alignment penalty. If False (default) every cell
         always counts as having splicing, so a cell with no splicing reads still has its
         (uninformed) splicing posterior averaged into the joint latent.
     variance_mixing : {"sqrt_weights","linear","squared"}, default "squared"
@@ -562,8 +567,7 @@ class SPLICEVAE(BaseModuleClass):
         (ignored for "concatenate"). The mean is always the weighted average of means.
         ``"sqrt_weights"``: for equal/cell/universal the MultiVI
         heuristic sum(sqrt(w) * v) (~1.41x the average variance under equal weights); for
-        per_dimension_weighted_average this value keeps that mode's original rule
-        (sum(w * std))**2, the variance of an average of perfectly correlated errors.
+        per_dimension_weighted_average the rule (sum(w * std))**2, the variance of an average of perfectly correlated errors.
         ``"linear"`` uses sum(w * v) (no inflation). ``"squared"`` uses sum(w**2 * v), the
         variance of a weighted average of independent Gaussians (per-dimension w in the
         per-dimension mode); the default.
@@ -749,7 +753,8 @@ class SPLICEVAE(BaseModuleClass):
             deep_inject_covariates=deeply_inject_covariates,
         )
 
-        n_input_decoder = self.n_latent + self.n_continuous_cov + (3 if self.decoder_depth_covariates else 0)   # s68.4a
+        # Decoder input: latent, continuous covariates and, with decoder_depth_covariates, the 3 depth covariates.
+        n_input_decoder = self.n_latent + self.n_continuous_cov + (3 if self.decoder_depth_covariates else 0)
 
         if expression_architecture == "vanilla":
             self.z_decoder_expression = DecoderSCVI(
@@ -775,17 +780,16 @@ class SPLICEVAE(BaseModuleClass):
         # ---------------- Splicing Branch ----------------
         input_spl = n_input_junctions if n_input_junctions > 0 else 1
         n_input_encoder_spl = input_spl + n_continuous_cov * int(encode_covariates)
-        
-        print("Initializing Log Phi Concentration parameter (if relevant)")
-        # Initialize log_phi_j with a value of 100.0
+
+        # Concentration parameter (raw, before softplus): one per junction for the beta-binomial; for the
+        # Dirichlet-multinomial a single value here, replaced by one per ATSE by the model class once the
+        # junction-to-ATSE map is known (dm_concentration="atse").
         if self.splicing_loss_type == "beta_binomial":
             self.log_phi_j = self.init_log_phi(n_input_junctions)
             self.log_phi_j.requires_grad_(True)
-        elif self.splicing_loss_type == "dirichlet_multinomial": 
+        elif self.splicing_loss_type == "dirichlet_multinomial":
             self.log_phi_j = self.init_log_phi(None)
-            #if dm, once the anndata is set we will set the per atse concentration there in multivisplice.
             self.log_phi_j.requires_grad_(True)
-            #later change to per atse?
         else:
             self.log_phi_j = nn.Parameter(torch.tensor(0.0))
             self.log_phi_j.requires_grad_(False)
@@ -922,7 +926,7 @@ class SPLICEVAE(BaseModuleClass):
     def _splicing_cell_mask(self, x_spl: torch.Tensor, psi_mask: torch.Tensor | None) -> torch.Tensor:
         """Per-cell boolean: does this cell count as having the splicing modality?
 
-        Default (original behavior): always True (the threshold is below any attainable sum).
+        Default: always True (the threshold is below any attainable sum).
         With ``mask_cells_without_splicing``: True only if the cell has >= 1 observed junction.
         """
         if self.mask_cells_without_splicing and psi_mask is not None:
@@ -932,18 +936,17 @@ class SPLICEVAE(BaseModuleClass):
     def init_log_phi(self, size: int | None) -> nn.Parameter:
         """Initial raw concentration parameter. ``size=None`` gives the scalar DM parameter.
 
-        Default ("log100") reproduces the original init exactly (per-ATSE / per-junction:
-        N(log 100, 0.5); scalar: 4.6). "prior" samples phi from the Gamma prior, clamps it
-        above the floor, and inverts softplus so ``get_phi()`` starts at that sample.
+        "constant" (default): every value starts at log 100 (phi = softplus(log 100), about 4.6). "log100": the
+        same start plus a random draw (per-ATSE / per-junction: N(log 100, 0.5); scalar: 4.6). "prior" samples phi
+        from the Gamma prior, clamps it above the floor, and inverts softplus so ``get_phi()`` starts at that sample.
         """
         if self.phi_init == "log100":
             if size is None:
                 return nn.Parameter(torch.tensor(4.6))
             return nn.Parameter(torch.randn(size) * 0.5 + np.log(100.0))
         if self.phi_init == "constant":
-            # STAGE5 section 29/58: the log100 init without its random draw -- every ATSE starts at exactly
-            # log 100 (phi ~ 4.6). Per-ATSE phi is not identified (section 19), so the draw only added
-            # replicate variance.
+            # The "log100" start without its random draw: every ATSE starts at exactly log 100 (phi about 4.6).
+            # The draw only added variation between replicates.
             if size is None:
                 return nn.Parameter(torch.tensor(float(np.log(100.0))))
             return nn.Parameter(torch.full((size,), float(np.log(100.0))))
@@ -972,12 +975,8 @@ class SPLICEVAE(BaseModuleClass):
         return neg_log_prior / max(self.n_obs, 1)
 
     def set_cross_gate(self, value: float):
-        # value in [0,1]; keep as buffer so it's not optimized
-        # print(f"set_cross_gate, value:{value}")
+        # value in [0,1]; kept as a buffer so it is not optimized
         self.cross_gate.fill_(float(value))
-        # print(f"set_cross_gate, cross_gate:{self.cross_gate}")
-
-
 
     def _get_inference_input(self, tensors):
         """Assemble inputs for the inference network from registered fields."""
@@ -1015,11 +1014,18 @@ class SPLICEVAE(BaseModuleClass):
         mask_expr = x_expr.sum(dim=1) > 0
         mask_spl = self._splicing_cell_mask(x_spl, mask)
 
-        # s68.4a: per-cell depth/detection covariates for the decoders (standardized with training constants)
+        # Per-cell depth covariates for the decoders (decoder_depth_covariates): log1p of detected genes, observed
+        # junctions and library size, standardized with the training-data constants.
         depth_cov = None
         if self.decoder_depth_covariates:
             lib = size_factor[:, 0] if size_factor is not None else x_expr.sum(dim=1)
-            raw_cov = torch.stack([torch.log1p((x_expr > 0).sum(dim=1).to(x_expr.dtype)), torch.log1p(mask.sum(dim=1).to(x_expr.dtype)) if mask is not None else torch.zeros_like(lib), torch.log1p(lib.to(x_expr.dtype))], dim=1)
+            detected_genes = torch.log1p((x_expr > 0).sum(dim=1).to(x_expr.dtype))
+            if mask is not None:
+                observed_junctions = torch.log1p(mask.sum(dim=1).to(x_expr.dtype))
+            else:
+                observed_junctions = torch.zeros_like(lib)
+            library_size = torch.log1p(lib.to(x_expr.dtype))
+            raw_cov = torch.stack([detected_genes, observed_junctions, library_size], dim=1)
             depth_cov = (raw_cov - self.depth_cov_mean) / self.depth_cov_std
 
         if cont_covs is not None and self.encode_covariates:
@@ -1038,59 +1044,27 @@ class SPLICEVAE(BaseModuleClass):
 
         qzm_expr, qzv_expr, z_expr = self.z_encoder_expression(encoder_input_expr, batch_index, *categorical_input)
 
-        # print(
-        #     "ExprEncoder:",
-        #     f"qzm_expr NaNs={torch.isnan(qzm_expr).sum().item()},",
-        #     f"qzv_expr NaNs={torch.isnan(qzv_expr).sum().item()}"
-        # )
-
         if self.splicing_encoder_architecture == "vanilla":
-            # your existing SCVI encoder
+            # scVI encoder on the dense junction-usage matrix
             qzm_spl, qzv_spl, z_spl = self.z_encoder_splicing(
                 encoder_input_spl, batch_index, *categorical_input
             )
         else:
-            # PartialEncoder gives (mu, raw_logvar)
-            #print(f"x_spl min/max={x_spl.min().item():.3e}/{x_spl.max().item():.3e}, mask sum={mask.sum().item()}")
-
+            # The partial encoder sees only the observed junctions and returns (mu, raw variance).
             mu, raw_logvar = self.z_encoder_splicing(
                 x_spl, mask, batch_index, *categorical_input, cont=cont_covs
             )
-
-            # print(
-            #     "PartialEncoder output:",
-            #     f"mu shape={tuple(mu.shape)},  raw_logvar shape={tuple(raw_logvar.shape)}",
-            #     f"  mu NaNs={torch.isnan(mu).sum().item()},",
-            #     f" raw_logvar NaNs={torch.isnan(raw_logvar).sum().item()}",
-            # )
-            # clamp + exponentiate to get variance
-            # logvar = torch.clamp(raw_logvar, min=-5.0, max=5.0)
-            # var = torch.exp(logvar)
-
             var = F.softplus(raw_logvar) + 1e-6
 
-            # print(
-            #     f"  var min/max = {var.min().item():.3e}/{var.max().item():.3e},",
-            #     f" var NaNs ={torch.isnan(var).sum().item()}",
-            # )
-            # build Normal dist
+            # Sample from the posterior; z_transformation is the identity for a normal latent (softmax for "ln").
             qz_dist = Normal(mu, torch.sqrt(var))
-            # sample / rsample
             if n_samples > 1:
                 z_spl = qz_dist.sample((n_samples,))
             else:
                 z_spl = qz_dist.rsample()
-
-            # print(
-            #     f"  z_spl shape={tuple(z_spl.shape)}, NaNs={torch.isnan(z_spl).sum().item()}"
-            # )
-            # apply any transformation (softmax for "ln")
             z_spl = self.z_encoder_splicing.z_transformation(z_spl)
-            # now set the “posterior‐stats” to exactly the same names as vanilla
             qzm_spl = mu
             qzv_spl = var
-
-
 
         # L encoder
         if self.use_size_factor_key:
@@ -1131,18 +1105,11 @@ class SPLICEVAE(BaseModuleClass):
             s = torch.sigmoid(self.dim_weights_raw)
             w_spl = torch.clamp(s - s.mean() + 0.5, min=1e-4, max=1 - 1e-4)
             w_expr = 1.0 - w_spl  # (D,)
-            if self.training and torch.rand(1).item() < 0.01:
-                w_np = w_spl.detach().cpu().numpy()
-                print(
-                    f"[per_dim_weights] splicing weights (mean={w_np.mean():.3f}, "
-                    f"min={w_np.min():.3f}, max={w_np.max():.3f}): "
-                    + ", ".join(f"d{i}={v:.3f}" for i, v in enumerate(w_np))
-                )
             # w_spl/w_expr are (D,); broadcast over batch
             qz_m = w_expr * qzm_expr + w_spl * qzm_spl
             # variance (see ``variance_mixing``): "squared" = independent errors, sum(w^2 * v);
-            # "linear" = sum(w * v); "sqrt_weights" (default) keeps this mode's original rule,
-            # (sum(w * std))^2, i.e. perfectly correlated errors. All use per-dimension w.
+            # "linear" = sum(w * v); "sqrt_weights" = (sum(w * std))^2, i.e. perfectly correlated errors.
+            # All use per-dimension w.
             if self.variance_mixing == "squared":
                 qz_v = w_expr ** 2 * qzv_expr + w_spl ** 2 * qzv_spl
             elif self.variance_mixing == "linear":
@@ -1163,14 +1130,7 @@ class SPLICEVAE(BaseModuleClass):
                 "squared": torch.square,
             }[self.variance_mixing]
             qz_v = mix_modalities((qzv_expr, qzv_spl), (mask_expr, mask_spl), weights, var_weight_transform)
-            qz_v = torch.clamp(qz_v, min=1e-6) #please double check this variance logic. i think in multivae they treat it like std sometimes and variance other times. need to make it consistet at least in our code
-
-        # print(
-        #     "After mix:",
-        #     f"qz_m NaNs={torch.isnan(qz_m).sum().item()},",
-        #     f"qz_v NaNs={torch.isnan(qz_v).sum().item()}"
-        # )
-
+            qz_v = torch.clamp(qz_v, min=1e-6)
 
         # sample
         if n_samples > 1:
@@ -1199,7 +1159,7 @@ class SPLICEVAE(BaseModuleClass):
             "qzv_spl": qzv_spl,
             "libsize_expr": libsize_expr,
             "x": x,
-            "depth_cov": depth_cov,       # s68.4a (None unless decoder_depth_covariates)
+            "depth_cov": depth_cov,       # None unless decoder_depth_covariates
         }
 
     def _get_generative_input(self, tensors, inference_outputs, transform_batch=None):
@@ -1271,10 +1231,6 @@ class SPLICEVAE(BaseModuleClass):
             e_to_s = (z_e * gate) # expression half going into splicing decoder
             s_to_e = (z_s * gate)  # splicing   half going into expression decoder
 
-            # print(f"generative, e_to_s:{e_to_s}")
-            # print(f"generative, s_to_e:{s_to_e}")
-            # print(f"generative, gate:{gate}")
-
             dec_in_expr = torch.cat([z_e, s_to_e], dim=-1)
             dec_in_spl  = torch.cat([e_to_s, z_s], dim=-1)
         else:
@@ -1282,18 +1238,17 @@ class SPLICEVAE(BaseModuleClass):
             dec_in_expr = latent
             dec_in_spl  = latent
 
-        if depth_cov is not None:   # s68.4a: decoders (only) see the depth covariates
+        # Depth covariates go to the decoders only (not to the encoders).
+        if depth_cov is not None:
             def _attach_depth(rep):
-                return torch.cat([rep, depth_cov.unsqueeze(0).expand(rep.size(0), -1, -1)], dim=-1) if rep.dim() != depth_cov.dim() else torch.cat([rep, depth_cov], dim=-1)
-            dec_in_expr = _attach_depth(dec_in_expr); dec_in_spl = _attach_depth(dec_in_spl)
+                if rep.dim() != depth_cov.dim():   # rep has a leading sample dimension
+                    return torch.cat([rep, depth_cov.unsqueeze(0).expand(rep.size(0), -1, -1)], dim=-1)
+                return torch.cat([rep, depth_cov], dim=-1)
+            dec_in_expr = _attach_depth(dec_in_expr)
+            dec_in_spl = _attach_depth(dec_in_spl)
         decoder_input_expr = _attach_cont(dec_in_expr)
-        # NOTE: partial splicing decoder expects cont covs via arg, not concatenated
+        # The linear splicing decoder takes the continuous covariates as an argument instead of concatenated.
         decoder_input_spl  = _attach_cont(dec_in_spl) if self.splicing_decoder_architecture == "vanilla" else dec_in_spl
-        
-
-        # if torch.rand(1).item() < 0.01: 
-        #     print(f"expression input {decoder_input_expr}")
-        #     print(f"splicing input {decoder_input_spl}")
 
         # Splicing
         if self.splicing_decoder_architecture == "vanilla":
@@ -1315,19 +1270,7 @@ class SPLICEVAE(BaseModuleClass):
             logits = torch.log(p_s_clamped) - torch.log1p(-p_s_clamped)
             lse = group_logsumexp(self.junc2atse, logits)          # (N, G)
             log_pi = subtract_group_logsumexp(self.junc2atse, logits, lse)  # (N, J)
-            p_s = torch.exp(log_pi)                                # comment out this line to test without group-softmax
-
-            if self.training and torch.rand(1).item() < 0.01:
-                idx_j, idx_g = self.junc2atse.indices()
-                g = int(torch.randint(int(idx_g.max()) + 1, (1,)).item())
-                junc_ids = idx_j[idx_g == g]
-                cell = int(torch.randint(p_s.size(0), (1,)).item())
-                group_sum = p_s[cell, junc_ids].sum().item()
-                print(
-                    f"[generative sanity] cell={cell}  atse={g}  "
-                    f"n_junctions={len(junc_ids)}  "
-                    f"p_s sum={group_sum:.6f}  (should be ~1.0)"
-                )
+            p_s = torch.exp(log_pi)
 
         # Expression
         px_scale, _, px_rate, px_dropout = self.z_decoder_expression(
@@ -1373,29 +1316,18 @@ class SPLICEVAE(BaseModuleClass):
             A container with total loss, reconstruction losses, and KL divergence details.
         """
 
-        for name, val in inference_outputs.items():
-            if isinstance(val, torch.Tensor):
-                mask_finite = torch.isfinite(val)
-                if not mask_finite.all():
-                    # compute range over the finite entries
-                    finite = val[mask_finite]
-                    vmin = finite.min().item() if finite.numel() else float("nan")
-                    vmax = finite.max().item() if finite.numel() else float("nan")
-                    print(f"[loss][ERROR] inference_outputs['{name}'] has non-finite values!"
-                            f"  finite range = {vmin:.4e} → {vmax:.4e}")
-                    assert False, f"inference_outputs['{name}'] contains non-finite entries"
-
-        # --- only-on-error checks & stats for generative_outputs ---
-        for name, val in generative_outputs.items():
-            if isinstance(val, torch.Tensor):
-                mask_finite = torch.isfinite(val)
-                if not mask_finite.all():
-                    finite = val[mask_finite]
-                    vmin = finite.min().item() if finite.numel() else float("nan")
-                    vmax = finite.max().item() if finite.numel() else float("nan")
-                    print(f"[loss][ERROR] generative_outputs['{name}'] has non-finite values!"
-                            f"  finite range = {vmin:.4e} → {vmax:.4e}")
-                    assert False, f"generative_outputs['{name}'] contains non-finite entries"
+        # Stop with a clear error if any output of the encoders or decoders is not finite (NaN or infinite).
+        for outputs_name, outputs in (("inference_outputs", inference_outputs), ("generative_outputs", generative_outputs)):
+            for name, val in outputs.items():
+                if isinstance(val, torch.Tensor):
+                    mask_finite = torch.isfinite(val)
+                    if not mask_finite.all():
+                        finite = val[mask_finite]
+                        vmin = finite.min().item() if finite.numel() else float("nan")
+                        vmax = finite.max().item() if finite.numel() else float("nan")
+                        raise FloatingPointError(
+                            f"{outputs_name}['{name}'] has non-finite values (finite range {vmin:.4e} to {vmax:.4e})"
+                        )
 
         # Get the data
         x = inference_outputs["x"]
@@ -1457,22 +1389,12 @@ class SPLICEVAE(BaseModuleClass):
             mask_spl
         )
 
-        # print(
-        #     "[Loss] rl_expr: ",
-        #     float(rl_expression.mean()), "nan_count:", int(torch.isnan(rl_expression).sum()),
-        #     " | rl_spl:", float(rl_splicing.mean()), "nan_count:", int(torch.isnan(rl_splicing).sum()),
-        #     " | KL_z:", float(kl_div_z.mean()), "nan_count:", int(torch.isnan(kl_div_z).sum()),
-        #     " | KL_paired:", float(kl_div_paired.mean()), "nan_count:", int(torch.isnan(kl_div_paired).sum())
-        # )
-
-        # KL WARMUP
         # ───── KL warm-up (per-cell) ─────────────────────────────────────
         kl_local_for_warmup = kl_div_z
         weighted_kl_local = kl_weight * kl_local_for_warmup + kl_div_paired
 
-        # ───── L2 prior on log-concentrations ϕ_j (global → per-cell) ────
+        # ───── prior on the concentrations (see phi_prior) ─────────────────
         prior_loss = self.phi_prior_loss(x.size(0))
-        
 
         # ───── total negative ELBO ───────────────────────────────────────
         loss = torch.mean(recon_loss + weighted_kl_local) + prior_loss
@@ -1482,16 +1404,6 @@ class SPLICEVAE(BaseModuleClass):
             "reconstruction_loss_expression": recon_loss_expression,
             "reconstruction_loss_splicing": recon_loss_splicing
         }
-
-        # scalar diagnostics (no grads)
-        # print scalar diagnostics (no grad tracking)
-        if self.training and torch.rand(1).item() < 0.01:  # 1% of iterations
-            phi_values = generative_outputs["phi"]
-            gene_dispersion = generative_outputs["px_r"]  # Gene concentration parameters
-            # Compare them
-            phi_median = phi_values.median().item()
-            gene_median = gene_dispersion.median().item()
-            ratio = phi_median / gene_median if gene_median > 0 else float('inf')
 
         kl_local = {
             "kl_divergence_z": kl_div_z,
@@ -1627,18 +1539,15 @@ class SPLICEVAE(BaseModuleClass):
             if phi.ndim == 0:
                 # scalar
                 conc_junc = phi
-                #print("Phi is a Scalar Value")
             elif phi.ndim == 1 and phi.shape[0] == self.junc2atse.size(1):
                 # per-ATSE → map to per-junction by sparse‐matrix multiply
                 #    self.junc2atse : (J × G), phi.unsqueeze(1) : (G × 1)
                 if self.junc2atse.device != p.device:
                     self.junc2atse = self.junc2atse.to(p.device)
                 conc_junc = torch.sparse.mm(self.junc2atse, phi.unsqueeze(1)).squeeze(1)
-                #print("Phi is per ATSE")
             elif phi.ndim == 1 and phi.shape[0] == self.junc2atse.size(0):
                 # already per-junction
                 conc_junc = phi
-                #print("Phi is per Junction")
             else:
                 raise ValueError(f"Unexpected phi shape {tuple(phi.shape)}")
 
@@ -1655,7 +1564,7 @@ class SPLICEVAE(BaseModuleClass):
                 alpha=alpha,
                 mask=mask, #internally sums over all atses and junctions
             )
-            # ll is the log‐likelihood per cell, so -ll is your loss
+            # ll is the log-likelihood per cell, so the loss is -ll
             return -ll
         
         else:
@@ -1685,7 +1594,6 @@ class SPLICEVAE(BaseModuleClass):
         Tensor
             A scalar penalty computed over cells where both modalities are observed.
         """
-        # return torch.tensor(0.0, device=next(self.parameters()).device)
         mask = torch.logical_and(mask1, mask2)
         if self.modality_weights == "concatenate":
             return torch.tensor(0.0, device=next(self.parameters()).device)
@@ -1693,7 +1601,9 @@ class SPLICEVAE(BaseModuleClass):
         if self.modality_penalty == "None":
             return torch.tensor(0.0, device=next(self.parameters()).device)
         elif self.modality_penalty == "Jeffreys":
-            penalty = sym_kld(mod_params_expr[0], mod_params_expr[1].sqrt(), #why are they doing sqrt twice in multivae (orig had this so i kept it the same??)
+            # As in MultiVI, standard deviations are passed and sym_kld takes their square root again (kept as is;
+            # the default modality_penalty is "None").
+            penalty = sym_kld(mod_params_expr[0], mod_params_expr[1].sqrt(),
                                     mod_params_spl[0], mod_params_spl[1].sqrt())
             return penalty[mask].sum()
         elif self.modality_penalty == "MMD":

@@ -1,28 +1,21 @@
 from __future__ import annotations
 
 import logging
-import warnings
-from collections.abc import Iterable as IterableClass
 from contextlib import contextmanager
 from functools import partial
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 import torch
 from mudata import MuData
-from scipy.sparse import csr_matrix, vstack
+from sklearn.decomposition import TruncatedSVD
 from torch.distributions import Normal
+from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
 
 from scvi import REGISTRY_KEYS, settings
 from scvi.data import AnnDataManager, fields
-from scvi.data.fields import (
-    CategoricalJointObsField,
-    CategoricalObsField,
-    LayerField,
-    NumericalJointObsField,
-    NumericalObsField,
-)
 from scvi.model._utils import (
     _get_batch_code_from_category,
     scrna_raw_counts_properties,
@@ -66,12 +59,51 @@ def _psi_absolute_change_fn(scales_1: np.ndarray, scales_2: np.ndarray, pseudoco
     return scales_2 - scales_1
 
 
-import torch
-from scvi.train import AdversarialTrainingPlan
+def _fdr_calls(posterior_probabilities: pd.Series, fdr: float) -> pd.Series:
+    """Features called differential at a target posterior expected FDR, with ties broken by feature order.
 
-from torch.optim.lr_scheduler import ReduceLROnPlateau, StepLR
-import scipy.sparse as sp
-from sklearn.decomposition import TruncatedSVD
+    Same rule as scvi-tools' ``_fdr_de_prediction``: sort features by posterior probability (highest first) and call
+    the longest leading run whose mean (1 - probability) is at most ``fdr``. scvi-tools sorts with an unstable sort,
+    so when several features share the probability at the cutoff, which of them are called depends on the CPU's sort
+    implementation (it differs between machines with and without AVX-512). A stable sort keeps tied features in their
+    input order, so the calls are the same on every machine. The number of calls is unchanged.
+    """
+    probabilities = posterior_probabilities.to_numpy()
+    order = np.argsort(-probabilities, kind="stable")
+
+    sorted_probabilities = probabilities[order]
+    cumulative_fdr = np.cumsum(1.0 - sorted_probabilities) / (1.0 + np.arange(len(sorted_probabilities)))
+    n_calls = int((cumulative_fdr <= fdr).sum())
+
+    calls = np.zeros(len(probabilities), dtype=bool)
+    calls[order[:n_calls]] = True
+    return pd.Series(calls, index=posterior_probabilities.index)
+
+
+def _sort_and_call_stably(result: pd.DataFrame, feature_names, mode: str, fdr: float) -> pd.DataFrame:
+    """Re-sort a ``_de_core`` table and recompute its FDR calls with stable sorts (see :func:`_fdr_calls`).
+
+    ``_de_core`` returns each comparison sorted by ``proba_de`` (or ``bayes_factor`` in ``"vanilla"`` mode) with an
+    unstable sort. Here each comparison is put back in feature order and sorted again with a stable sort, so that tied
+    features keep their feature order, and the FDR calls are recomputed with :func:`_fdr_calls`. All other values are
+    unchanged.
+    """
+    sort_column = "proba_de" if mode == "change" else "bayes_factor"
+    flag_column = f"is_de_fdr_{fdr}"
+
+    if "comparison" in result.columns:
+        comparisons = [table for _, table in result.groupby("comparison", sort=False)]
+    else:
+        comparisons = [result]
+
+    sorted_comparisons = []
+    for table in comparisons:
+        table = table.loc[feature_names]
+        table = table.iloc[np.argsort(-table[sort_column].to_numpy(), kind="stable")].copy()
+        if mode == "change":
+            table[flag_column] = _fdr_calls(table["proba_de"], fdr)
+        sorted_comparisons.append(table)
+    return pd.concat(sorted_comparisons, axis=0)
 
 class MyAdvTrainingPlan(AdversarialTrainingPlan):
 
@@ -147,7 +179,6 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
         # KL warmup drives self.kl_weight from 0→1
         if self.cross_gate_mode == "soft":
             return float(self.kl_weight)                 # gradually open
-        # print(self.kl_weight)
         return 1.0 if float(self.kl_weight) >= 0.999 else 0.0  # snap open when warmup done
     
     def on_validation_epoch_start(self):
@@ -169,12 +200,11 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
 
     def configure_optimizers(self):
         """Configure optimizers for adversarial training."""
-        print("Configuring optimizers")
         params1 = filter(lambda p: p.requires_grad, self.module.parameters())
         optimizer1 = self.get_optimizer_creator()(params1)
         config1 = {"optimizer": optimizer1}
         if self.lr_scheduler_type == "step":
-            print("Using step LR")
+            logger.info(f"Learning rate: step schedule (x{self.lr_factor} every {self.step_size} epochs)")
             scheduler = StepLR(
                 optimizer1,
                 step_size=self.step_size,
@@ -190,7 +220,7 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
             )
             
         elif self.reduce_lr_on_plateau and self.lr_scheduler_type == "plateau":
-            print("Using plateau LR")
+            logger.info("Learning rate: reduced on plateau of the validation loss")
             scheduler1 = ReduceLROnPlateau(
                 optimizer1,
                 patience=self.lr_patience,
@@ -603,9 +633,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             if psi_input == "deviation" and splicing_encoder_architecture == "partial":
                 self.init_pool_divisor_from_adata()
             if decoder_intercept_init == "population" and splicing_decoder_architecture == "vanilla":
-                self.init_decoder_intercept_from_adata()      # STAGE5 s68.6
+                self.init_decoder_intercept_from_adata()
             if decoder_depth_covariates:
-                self.init_depth_covariate_stats_from_adata()  # STAGE5 s68.4a
+                self.init_depth_covariate_stats_from_adata()
 
             # Only needed for DM splicing likelihood
             if splicing_loss_type == "dirichlet_multinomial":
@@ -613,19 +643,19 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             if psi_prior_pseudocount > 0:
                 self.init_psi_prior_from_adata()
 
-
-        
     def make_junc2atse(self, atse_labels):
-        print("Making Junc2Atse...")
+        """Sparse (junctions x ATSEs) matrix with a 1 where a junction belongs to an ATSE.
+
+        With ``dm_concentration="atse"`` this also replaces the concentration parameter by one value per ATSE.
+        """
         num_junctions = len(atse_labels)
         atse_labels = atse_labels.astype('category')
         row_indices = torch.arange(num_junctions, dtype=torch.long)
         col_indices = torch.tensor(atse_labels.cat.codes.values)
         num_atses = len(atse_labels.cat.categories)
-        print(f"Found {num_junctions} junctions and {num_atses} ATSEs.")
-        from torch import nn
-        if self.dm_concentration== "atse":
-            print("Using ATSE level concentration, overwriting concentration parameter.")
+        logger.info(f"Found {num_junctions} junctions in {num_atses} ATSEs.")
+
+        if self.dm_concentration == "atse":
             self.module.log_phi_j = self.module.init_log_phi(num_atses)
             self.module.log_phi_j.requires_grad_(True)
 
@@ -634,92 +664,119 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             values=torch.ones(len(row_indices), dtype=torch.float32),
             size=(num_junctions, len(atse_labels.cat.categories))
         ).coalesce()
-    
+
     def init_junc2atse(self) -> None:
-        # Return early if already set
+        """Build the junction-to-ATSE matrix from ``var["event_id"]`` of the splicing modality (once)."""
         if hasattr(self.module, "junc2atse"):
             return
 
-        cl_info = self.adata_manager.data_registry["atse_counts_key"]
-        cl_key, mod_key = cl_info.attr_key, cl_info.mod_key
-        cluster_counts = self.adata[mod_key].layers[cl_key]  # existence check
-        atse_labels = self.adata[mod_key].var["event_id"]
+        atse_counts_info = self.adata_manager.data_registry["atse_counts_key"]
+        splicing_data = self.adata[atse_counts_info.mod_key]
+        if atse_counts_info.attr_key not in splicing_data.layers:
+            raise KeyError(f"ATSE count layer {atse_counts_info.attr_key!r} not found in the splicing modality.")
+        atse_labels = splicing_data.var["event_id"]
 
-        j2a = self.make_junc2atse(atse_labels)
-        self.module.junc2atse = j2a.coalesce().to(self.module.device)
-
+        junction_to_atse = self.make_junc2atse(atse_labels)
+        self.module.junc2atse = junction_to_atse.coalesce().to(self.module.device)
 
     def population_psi_from_adata(self) -> np.ndarray:
-        """Read-weighted population PSI per junction from the registered count layers of the training data:
-        sum over cells of junction counts / sum over cells of the event total (the atse_counts layer repeats the
-        event total on every junction of the event, so its column sum is the event's read total). 0 where no reads."""
-        jc = self.adata_manager.data_registry["junc_counts_key"]; ac = self.adata_manager.data_registry["atse_counts_key"]
-        K = self.adata[jc.mod_key].layers[jc.attr_key]; N = self.adata[ac.mod_key].layers[ac.attr_key]
-        num = np.asarray(K.sum(axis=0)).ravel().astype(np.float64); den = np.asarray(N.sum(axis=0)).ravel().astype(np.float64)
-        return np.divide(num, den, out=np.zeros_like(num), where=den > 0)
+        """Read-weighted population PSI per junction from the registered count layers of the training data.
+
+        Sum over cells of the junction counts divided by the sum over cells of the ATSE totals (the ATSE count layer
+        repeats the ATSE total on every junction of the ATSE, so its column sum is the ATSE's read total); 0 for
+        junctions without reads.
+        """
+        junction_counts_info = self.adata_manager.data_registry["junc_counts_key"]
+        atse_counts_info = self.adata_manager.data_registry["atse_counts_key"]
+        junction_counts = self.adata[junction_counts_info.mod_key].layers[junction_counts_info.attr_key]
+        atse_counts = self.adata[atse_counts_info.mod_key].layers[atse_counts_info.attr_key]
+
+        junction_reads = np.asarray(junction_counts.sum(axis=0)).ravel().astype(np.float64)
+        atse_reads = np.asarray(atse_counts.sum(axis=0)).ravel().astype(np.float64)
+        return np.divide(junction_reads, atse_reads, out=np.zeros_like(junction_reads), where=atse_reads > 0)
 
     def init_pop_psi_from_adata(self) -> None:
-        """Fill the partial encoder's pop_psi buffer with the read-weighted population psi of the training data (psi_input="deviation")."""
-        print("Initializing pop_psi (deviation PSI input) from the training data...")
+        """Fill the partial encoder's ``pop_psi`` buffer with the population PSI of the training data
+        (``psi_input="deviation"``)."""
         p_pop = self.population_psi_from_adata()
         with torch.no_grad():
             buf = self.module.z_encoder_splicing.pop_psi
             buf.copy_(torch.as_tensor(p_pop, dtype=buf.dtype, device=buf.device))
-        print(f"pop_psi set: {int((p_pop > 0).sum())} of {len(p_pop)} junctions with reads; mean {p_pop.mean():.4f}")
+        logger.info(f"Population PSI set for the encoder input: {int((p_pop > 0).sum())} of {len(p_pop)} junctions "
+                    f"with reads; mean {p_pop.mean():.4f}")
 
     def init_pool_divisor_from_adata(self) -> None:
-        """psi_input="deviation": the partial encoder's fixed pooling divisor = median over training cells of the number of observed junctions."""
-        import scipy.sparse as _sp
-        m = self.adata_manager.get_from_registry("psi_observed_mask") if "psi_observed_mask" in self.adata_manager.data_registry else None
-        if m is None:
-            m = self.adata["splicing"].layers["psi_mask"]
-        n = np.asarray((_sp.csr_matrix(m) > 0).sum(1)).ravel()
-        med = float(np.median(n))
+        """Set the partial encoder's fixed pooling divisor (``psi_input="deviation"``): the median number of observed
+        junctions per training cell."""
+        if "psi_observed_mask" in self.adata_manager.data_registry:
+            observed_mask = self.adata_manager.get_from_registry("psi_observed_mask")
+        else:
+            observed_mask = self.adata["splicing"].layers["psi_mask"]
+        observed_per_cell = np.asarray((sp.csr_matrix(observed_mask) > 0).sum(1)).ravel()
+        median_observed = float(np.median(observed_per_cell))
         with torch.no_grad():
-            self.module.z_encoder_splicing.pool_divisor.fill_(max(med, 1.0))
-        print(f"pool_divisor set: median observed junctions per training cell = {med:.0f}")
+            self.module.z_encoder_splicing.pool_divisor.fill_(max(median_observed, 1.0))
+        logger.info(f"Pooling divisor set: median observed junctions per training cell = {median_observed:.0f}")
 
     def init_decoder_intercept_from_adata(self) -> None:
-        """STAGE5 s68.6: initialize the splicing decoder's per-junction bias so that, with the hidden contribution at zero,
-        the within-event softmax reproduces the read-weighted population PSI: bias_j = log(clip(p_pop_j, 1e-4, 1)).
-        (generative() maps sigmoid(bias) -> clamp -> logit -> group softmax, i.e. softmax over the event of the bias.)"""
-        print("Initializing the splicing-decoder intercept at log(population PSI)...")
+        """Start the splicing decoder's per-junction bias at log(population PSI), clipped to [1e-4, 1].
+
+        With the hidden contribution at zero, the decoder then reproduces the population PSI: ``generative()`` maps
+        sigmoid(bias) -> clamp -> logit -> softmax within the ATSE, which is the softmax of the bias over the ATSE.
+        """
         p_pop = self.population_psi_from_adata()
         with torch.no_grad():
             b = self.module.z_decoder_splicing.ps_output.bias
             b.copy_(torch.as_tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=b.dtype, device=b.device))
-        print(f"decoder intercept set from population PSI ({len(p_pop)} junctions)")
+        logger.info(f"Splicing decoder bias set from the population PSI ({len(p_pop)} junctions)")
 
     def init_psi_prior_from_adata(self) -> None:
         """Population PSI for the pseudo-count prior (psi_prior_pseudocount > 0): read-weighted population PSI per
-        junction; junctions of events with no reads in the training data get 1 / (junctions in the event), so the prior
-        is a distribution within every event."""
+        junction; junctions of ATSEs with no reads in the training data get 1 / (junctions in the ATSE), so the prior
+        is a distribution within every ATSE."""
         p_pop = self.population_psi_from_adata()
-        ev = pd.factorize(self.adata[self.adata_manager.data_registry["junc_counts_key"].mod_key].var["event_id"].astype(str))[0]
-        size = np.bincount(ev)[ev]
-        no_reads = np.bincount(ev, weights=p_pop)[ev] == 0
-        p_pop = np.where(no_reads, 1.0 / size, p_pop)
+        splicing_mod_key = self.adata_manager.data_registry["junc_counts_key"].mod_key
+        atse_codes = pd.factorize(self.adata[splicing_mod_key].var["event_id"].astype(str))[0]
+        atse_size = np.bincount(atse_codes)[atse_codes]
+        no_reads = np.bincount(atse_codes, weights=p_pop)[atse_codes] == 0
+        p_pop = np.where(no_reads, 1.0 / atse_size, p_pop)
         with torch.no_grad():
             self.module.psi_prior_pop.copy_(torch.as_tensor(p_pop, dtype=self.module.psi_prior_pop.dtype))
-        print(f"psi prior: population PSI set for {len(p_pop)} junctions ({int(no_reads.sum())} in events without reads -> uniform); "
-              f"pseudo-count {self.module.psi_prior_pseudocount}")
+        logger.info(f"PSI prior: population PSI set for {len(p_pop)} junctions ({int(no_reads.sum())} in ATSEs "
+                    f"without reads -> uniform); pseudo-count {self.module.psi_prior_pseudocount}")
 
     def init_depth_covariate_stats_from_adata(self) -> None:
-        """STAGE5 s68.4a: mean/std of [log1p detected genes, log1p observed junctions, log1p library size] over the training cells,
-        stored as buffers so the decoders' covariates are standardized with training constants (same definitions as inference())."""
-        rna_info = self.adata_manager.data_registry[REGISTRY_KEYS.X_KEY]; mk = self.adata_manager.data_registry["psi_observed_mask"]
-        X = self.adata[rna_info.mod_key].layers[rna_info.attr_key] if rna_info.attr_name == "layers" else self.adata[rna_info.mod_key].X
-        n_genes = np.asarray((X > 0).sum(axis=1)).ravel().astype(np.float64)
-        M = self.adata[mk.mod_key].layers[mk.attr_key]; n_junc = np.asarray((M > 0).sum(axis=1)).ravel().astype(np.float64)
-        # size factor is a NumericalJointObsField (top-level mudata obsm, no mod_key): resolve it through the manager
-        lib = np.asarray(self.adata_manager.get_from_registry(REGISTRY_KEYS.SIZE_FACTOR_KEY)).ravel().astype(np.float64) if REGISTRY_KEYS.SIZE_FACTOR_KEY in self.adata_manager.data_registry else np.asarray(X.sum(axis=1)).ravel()
-        cov = np.log1p(np.column_stack([n_genes, n_junc, lib]))
+        """Mean and standard deviation over the training cells of [log1p detected genes, log1p observed junctions,
+        log1p library size], stored as buffers so the decoders' depth covariates are standardized with training
+        constants (same definitions as in ``SPLICEVAE.inference``)."""
+        registry = self.adata_manager.data_registry
+        rna_info = registry[REGISTRY_KEYS.X_KEY]
+        mask_info = registry["psi_observed_mask"]
+
+        rna_data = self.adata[rna_info.mod_key]
+        expression = rna_data.layers[rna_info.attr_key] if rna_info.attr_name == "layers" else rna_data.X
+        detected_genes = np.asarray((expression > 0).sum(axis=1)).ravel().astype(np.float64)
+
+        observed_mask = self.adata[mask_info.mod_key].layers[mask_info.attr_key]
+        observed_junctions = np.asarray((observed_mask > 0).sum(axis=1)).ravel().astype(np.float64)
+
+        # The size factor is a joint obsm field of the MuData (no mod_key), so it is read through the manager.
+        if REGISTRY_KEYS.SIZE_FACTOR_KEY in registry:
+            library_size = self.adata_manager.get_from_registry(REGISTRY_KEYS.SIZE_FACTOR_KEY)
+            library_size = np.asarray(library_size).ravel().astype(np.float64)
+        else:
+            library_size = np.asarray(expression.sum(axis=1)).ravel()
+
+        covariates = np.log1p(np.column_stack([detected_genes, observed_junctions, library_size]))
         with torch.no_grad():
-            self.module.depth_cov_mean.copy_(torch.as_tensor(cov.mean(0), dtype=self.module.depth_cov_mean.dtype)); self.module.depth_cov_std.copy_(torch.as_tensor(cov.std(0) + 1e-6, dtype=self.module.depth_cov_std.dtype))
-        print(f"depth covariate stats set (train): mean {cov.mean(0).round(3)}, std {cov.std(0).round(3)}")
+            mean_buffer, std_buffer = self.module.depth_cov_mean, self.module.depth_cov_std
+            mean_buffer.copy_(torch.as_tensor(covariates.mean(0), dtype=mean_buffer.dtype))
+            std_buffer.copy_(torch.as_tensor(covariates.std(0) + 1e-6, dtype=std_buffer.dtype))
+        logger.info(f"Depth covariate statistics set from the training cells: mean {covariates.mean(0).round(3)}, "
+                    f"std {covariates.std(0).round(3)}")
 
     def init_feature_embedding_from_adata(self) -> None:
-        print("Initializing feature embeddings...")
+        """Start the partial encoder's junction embeddings from a truncated SVD of the junction-usage matrix."""
         jr_info = self.adata_manager.data_registry["junc_ratio"]
         jr_key, mod_key = jr_info.attr_key, jr_info.mod_key
         X = self.adata[mod_key].layers[jr_key]
@@ -742,10 +799,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             emb = self.module.z_encoder_splicing.feature_embedding
             emb[:, :n_components].copy_(torch.as_tensor(comps, dtype=emb.dtype, device=emb.device))
         if n_components < code_dim:
-            print(f"Initialized {n_components} of {code_dim} feature-embedding columns from the SVD (small dataset).")
-        print("Initialized feature embeddings...")
-
-
+            logger.info(f"Started {n_components} of {code_dim} junction-embedding columns from the SVD (small dataset).")
 
     @devices_dsp.dedent
     def train(
@@ -845,17 +899,17 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             single-modality routing (SPLICEVAE.inference()'s warmup_only_splicing), so the joint
             posterior is the real mixed latent from the start -- ordinary KL warmup, no modality
             switching. For ``modality_weights="concatenate"`` it also disables the
-            closed-during-warmup cross-term gating. Default False = original behavior.
+            closed-during-warmup cross-term gating. Default False.
         num_workers
             Data-loader worker processes for the training and validation loaders (kept alive across epochs). Batches
-            are built in parallel with the GPU step instead of on the main process. 0 = original behavior.
+            are built in parallel with the GPU step instead of on the main process. Default 0 (main process).
         pin_memory
             Page-locked host memory for batches, which makes the copy to the GPU faster. Default False.
         load_sparse_tensor
             Send sparse layers to the GPU as sparse tensors and make them dense there (scvi-tools'
             ``on_after_batch_transfer``), instead of building dense 79,768-wide matrices on the CPU for every batch.
             Registered splicing layers stored dense are converted to CSR in memory first (same values). The batches
-            the model sees are identical. Default False = original behavior.
+            the model sees are identical. Default False.
         datasplitter_kwargs
             Additional kwargs for the data splitter.
         plan_kwargs
@@ -1031,7 +1085,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             X = ad_.layers[info.attr_key]
             if isinstance(X, np.ndarray):
                 ad_.layers[info.attr_key] = sp.csr_matrix(X)
-                print(f"[TRAIN] {info.mod_key}.layers['{info.attr_key}'] ({key}) converted to CSR for sparse loading")
+                logger.info(f"{info.mod_key}.layers['{info.attr_key}'] ({key}) converted to CSR for sparse loading")
 
     @torch.inference_mode()
     def get_normalized_expression(
@@ -1606,6 +1660,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             index=adata.obs_names[indices],
         )
 
+    @de_dsp.dedent
     @torch.inference_mode()
     def differential_expression(
         self,
@@ -1625,6 +1680,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         fdr_target: float = 0.05,
         silent: bool = False,
         norm_expression_function: Literal["decoder", "zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"] = "zinb_expected",
+        seed: int | None = None,
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential expression analysis.
@@ -1664,15 +1720,23 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
               uncertainty enters ``proba_de``.
 
             The two posterior options need ``gene_likelihood="zinb"``.
+        seed
+            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated calls give the
+            same table. This seeds PyTorch, NumPy and Python's ``random`` for the whole session. Default ``None``
+            leaves the random state as it is.
         **kwargs
             Additional keyword arguments for differential computation.
 
         Returns
         -------
-        A pandas DataFrame with differential expression results.
+        A pandas DataFrame with differential expression results, sorted by ``proba_de`` (highest first). Features with
+        equal ``proba_de`` keep their order in the data, and the FDR calls use the same order, so the table is the same
+        on every machine.
         """
         self._check_adata_modality_weights(adata)
         adata = self._validate_anndata(adata)
+        if seed is not None:
+            settings.seed = seed
 
         col_names = adata.var_names[: self.n_genes]
 
@@ -1731,9 +1795,10 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             silent=silent,
             **kwargs,
         )
-        return result
+        return _sort_and_call_stably(result, col_names, mode, fdr_target)
 
 
+    @de_dsp.dedent
     @torch.inference_mode()
     def differential_splicing(
         self,
@@ -1753,6 +1818,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         fdr_target: float = 0.05,
         silent: bool = False,
         norm_splicing_function: Literal["decoder", "dm_posterior_mean", "dm_posterior_sample"] = "dm_posterior_sample",
+        seed: int | None = None,
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential splicing analysis.
@@ -1790,12 +1856,18 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             ``delta`` (default 0.1) is a threshold on the absolute difference in junction usage. The paper also keeps
             only junctions observed in at least 3 cells of each group; apply that with
             :func:`~splicevi.filter_read_support` on the returned table (it does not change the FDR calls).
+        seed
+            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated calls give the
+            same table. This seeds PyTorch, NumPy and Python's ``random`` for the whole session. Default ``None``
+            leaves the random state as it is.
         **kwargs
             Additional keyword arguments for differential computation.
 
         Returns
         -------
-        A pandas DataFrame with differential splicing results.
+        A pandas DataFrame with differential splicing results, one row per junction in the order of the data. Among
+        junctions with equal ``proba_ds`` at the FDR cutoff, the ones earlier in the data are called, so the calls are
+        the same on every machine.
         """
 
         def scsplicing_ratio_properties(
@@ -1865,12 +1937,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
         self._check_adata_modality_weights(adata)
         adata = self._validate_anndata(adata)
+        if seed is not None:
+            settings.seed = seed
 
         col_names = adata["splicing"].var_names
 
-
-        # Use expected PSI from the splicing head
-
+        # Junction-usage estimate the groups are compared on.
         if norm_splicing_function == "decoder":
             model_fn = partial(
                 self.get_normalized_splicing,
@@ -1883,14 +1955,12 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
                 sample=(norm_splicing_function == "dm_posterior_sample"),
             )
         else:
-            print("Unrecognized Normalized Splicing Mode, defaulting to regular decoder output.")
-            model_fn = partial(
-                self.get_normalized_splicing,
-                batch_size=batch_size,
+            raise ValueError(
+                "norm_splicing_function must be 'decoder', 'dm_posterior_mean' or 'dm_posterior_sample', "
+                f"got {norm_splicing_function!r}"
             )
 
-
-        # Minimal empirical stats on PSI itself
+        # Empirical statistics of the observed PSI
         all_stats_fn = partial(
             scsplicing_ratio_properties,
             var_idx=np.arange(adata["splicing"].shape[1])[: self.n_junctions],
@@ -1923,6 +1993,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             pseudocounts=1e-6,
             **kwargs,
         )
+        result = _sort_and_call_stably(result, col_names, mode, fdr_target)
         result = pd.DataFrame(
             {
                 "proba_ds": result.proba_de,
@@ -1946,21 +2017,19 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             index=col_names,
         )
 
+        # Readable junction and gene names first, when the data has them.
         var_cols = adata["splicing"].var
         wanted = [c for c in ["junction_id", "gene_name"] if c in var_cols.columns]
         if wanted:
             meta = var_cols.loc[col_names, wanted]  # reindex to the same junctions in the same order
             result = result.join(meta)
 
-
         if "junction_id" in result.columns:
             result.insert(0, "junction_id", result.pop("junction_id"))
         if "gene_name" in result.columns:
             result.insert(1, "gene_name", result.pop("gene_name"))
 
-
         return result
-
 
     # --- Decoder covariates and decoder fine-tuning (transfer to a new atlas) ---
 
@@ -2073,8 +2142,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             junction ids and ATSE assignment), with the layers this model was trained on: expression counts
             (``length_norm``; raw counts for UMI data), library size (``X_library_size``), junction and ATSE counts,
             ``junc_ratio`` and ``psi_mask``. If not yet set up, it is set up with this model's setup arguments (as
-            :meth:`load` does). The paper's construction from model-ready AnnData files is ``units_mudata`` in
-            SpliceVI-utils ``eval/easysci_transfer/v9/finetune_v9.py``.
+            :meth:`load` does). The paper's reproduction code (SpliceVI-utils) shows how these files were built from the
+            model-ready data.
         reference_mdata
             A replay set of the data this model was trained on (e.g. 20,000 Allen training cells), same layers.
         n_query_per_step, n_reference_per_step
@@ -2091,7 +2160,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             fine-tuning). GPU arithmetic is not bit-deterministic, so reruns agree closely but not exactly.
         set_torch_seed
             Call ``torch.manual_seed(seed)`` (changes torch's global random state). False when the caller seeded torch
-            already, e.g. before loading the model, as the paper's v9 run did.
+            already, e.g. before loading the model, as the paper's fine-tuning run did.
         max_minutes
             Optional wall-clock limit (the best state so far is kept). Keep it below a job's time limit.
         checkpoint_dir
@@ -2127,74 +2196,21 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
     @staticmethod
     def preset(name, atlas=None, joint=False):
-        """Named recipes behind the paper's models; see :func:`splicevi.presets.preset`. Class defaults are unchanged."""
+        """Settings of the paper's models (the class defaults equal ``preset("paper")``); see
+        :func:`splicevi.presets.preset`."""
         from .presets import preset as _preset
         return _preset(name, atlas=atlas, joint=joint)
 
     @classmethod
-    @setup_anndata_dsp.dedent
-    def setup_anndata(
-        cls,
-        adata: AnnData,
-        layer: str | None = None,
-        junc_ratio: str | None = None,
-        cell_by_junction_matrix: str | None = None,
-        cell_by_cluster_matrix: str | None = None,
-        psi_mask_layer: str | None = None,
-        batch_key: str | None = None,
-        size_factor_key: str | None = None,
-        categorical_covariate_keys: list[str] | None = None,
-        continuous_covariate_keys: list[str] | None = None,
-        **kwargs,
-    ):
-        r"""Set up an AnnData object for SPLICEVI.
+    def setup_anndata(cls, adata: AnnData, **kwargs):
+        """Not supported: SPLICEVI needs a MuData object with an ``"rna"`` and a ``"splicing"`` modality.
 
-        Parameters
-        ----------
-        %(param_adata)s
-        %(param_layer)s
-        junc_ratio
-            Key in ``adata.layers`` for junction ratio values.
-        cell_by_junction_matrix
-            Key in ``adata.layers`` for the cell-by-junction matrix.
-        cell_by_cluster_matrix
-            Key in ``adata.layers`` for the cell-by-cluster splicing matrix.
-        psi_mask_layer
-            Layer with binary mask (1=observed, 0=missing) per junction.
-        %(param_batch_key)s
-        %(param_size_factor_key)s
-        %(param_cat_cov_keys)s
-        %(param_cont_cov_keys)s
-
-        Notes
-        -----
-        Use this method if your splicing data is stored in an AnnData object where gene expression and
-        splicing features are concatenated.
+        Use :meth:`setup_mudata`. (scvi-tools requires every model class to define this method.)
         """
-        setup_method_args = cls._get_setup_method_args(**locals())
-        adata.obs["_indices"] = np.arange(adata.n_obs)
-        batch_field = CategoricalObsField(REGISTRY_KEYS.BATCH_KEY, batch_key)
-        anndata_fields = [
-            LayerField(REGISTRY_KEYS.X_KEY, layer, is_count_data=True),
-            batch_field,
-            CategoricalObsField(REGISTRY_KEYS.LABELS_KEY, None),
-            CategoricalObsField(REGISTRY_KEYS.BATCH_KEY, batch_key),
-            NumericalJointObsField(REGISTRY_KEYS.SIZE_FACTOR_KEY, size_factor_key, required=False),
-            CategoricalJointObsField(REGISTRY_KEYS.CAT_COVS_KEY, categorical_covariate_keys),
-            NumericalJointObsField(REGISTRY_KEYS.CONT_COVS_KEY, continuous_covariate_keys),
-            NumericalObsField(REGISTRY_KEYS.INDICES_KEY, "_indices"),
-        ]
-        if junc_ratio is not None:
-            anndata_fields.append(LayerField("junc_ratio_key", junc_ratio, is_count_data=True))
-        if cell_by_junction_matrix is not None:
-            anndata_fields.append(LayerField("cell_by_junction_matrix", cell_by_junction_matrix, is_count_data=True))
-        if cell_by_cluster_matrix is not None:
-            anndata_fields.append(LayerField("cell_by_cluster_matrix", cell_by_cluster_matrix, is_count_data=True))
-        if psi_mask_layer is not None:
-            anndata_fields.append(LayerField("psi_observed_mask", psi_mask_layer, is_count_data=False))
-        adata_manager = AnnDataManager(fields=anndata_fields, setup_method_args=setup_method_args)
-        adata_manager.register_fields(adata, **kwargs)
-        cls.register_manager(adata_manager)
+        raise NotImplementedError(
+            "SPLICEVI works on MuData objects only. Put expression and splicing in a MuData with modalities 'rna' "
+            "and 'splicing' and call SPLICEVI.setup_mudata(mdata)."
+        )
 
     @classmethod
     @setup_anndata_dsp.dedent

@@ -15,10 +15,11 @@ What is trained and what is kept from the reference model:
 - kept: the expression and splicing encoders, junction embeddings and latent mixing (so query cells are placed in the
   reference latent space), the population PSI and pool divisor of the deviation input, the per-ATSE concentrations and
   the gene dispersions. Re-learning the concentrations and dispersions on the query data was tested and
-    predicted held-out query reads worse, so it is not offered here.
+  predicted held-out query reads worse, so it is not offered here.
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
 
@@ -29,9 +30,7 @@ from scvi import REGISTRY_KEYS
 
 TRAINABLE_PREFIXES = ("z_decoder_expression.", "z_decoder_splicing.", "decoder_covariate_weight_")
 
-
-def log(message):
-    print(f"[FINETUNE_DECODERS] {message}", flush=True)
+logger = logging.getLogger(__name__)
 
 
 def _register(model, mdata):
@@ -157,13 +156,13 @@ def finetune_decoders(
         for p in trainable:
             p.requires_grad_(True)
         optimizer = torch.optim.Adam(trainable, lr=lr)
-        log(f"query {n_query:,} cells ({len(train_idx):,} training, {n_validation:,} validation); reference replay "
+        logger.info(f"query {n_query:,} cells ({len(train_idx):,} training, {n_validation:,} validation); reference replay "
             f"{n_reference:,} cells; {n_query_per_step} query + {n_reference_per_step} reference cells per step; trainable "
             f"{sum(p.numel() for p in trainable):,} parameters (decoders + decoder covariate weights); seed {seed}")
 
         start_validation = validation_loss()
         rows.append(dict(epoch=-1, train_loss=np.nan, validation_loss=start_validation))
-        log(f"epoch -1: validation {start_validation:.3f} (decoder covariate weights zero = the reference model)")
+        logger.info(f"epoch -1: validation {start_validation:.3f} (decoder covariate weights zero = the reference model)")
         best, best_epoch, wait, best_state = np.inf, -1, 0, snapshot()
         stop_reason = f"max_epochs ({max_epochs})"
         for epoch in range(max_epochs):
@@ -177,7 +176,7 @@ def finetune_decoders(
             else:
                 wait += 1
             if epoch % 10 == 0 or wait == 0:
-                log(f"epoch {epoch}: train {train_loss:.1f}, validation {val_loss:.3f} (best {best:.3f} at epoch {best_epoch})")
+                logger.info(f"epoch {epoch}: train {train_loss:.1f}, validation {val_loss:.3f} (best {best:.3f} at epoch {best_epoch})")
             if wait >= early_stopping_patience:
                 stop_reason = f"early stopping at epoch {epoch} (patience {early_stopping_patience})"
                 break
@@ -203,6 +202,6 @@ def finetune_decoders(
         n_query=n_query, n_reference=n_reference, best_epoch=best_epoch, best_validation_loss=float(best),
         start_validation_loss=float(start_validation), stop_reason=stop_reason,
         minutes=round((time.time() - t0) / 60, 1))
-    log(f"{stop_reason}; best validation {best:.3f} at epoch {best_epoch} (start {start_validation:.3f}); "
+    logger.info(f"{stop_reason}; best validation {best:.3f} at epoch {best_epoch} (start {start_validation:.3f}); "
         f"{model.finetune_params_['minutes']} min; model now decodes as query data (decoder covariate = {query_covariate_value})")
     return history

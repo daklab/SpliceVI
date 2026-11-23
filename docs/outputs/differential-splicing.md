@@ -91,3 +91,5 @@ ds_results = model.differential_splicing(
 
 - Very sparse junctions (low `n_obs_group1/2`) will have wider posteriors — consider filtering before interpretation
 - Both methods support `batch_correction=True` to marginalize over batch effects when comparing groups
+- `proba_ds` / `proba_de` are Monte Carlo estimates; pass `seed=` (e.g. `seed=0`) to get the same table on repeated calls
+- Features with equal posterior probability keep their order in the data, both in the row order of the DE table and in which of them are called when they are tied at the FDR cutoff, so the calls are the same on every machine
