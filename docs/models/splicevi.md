@@ -1,8 +1,8 @@
 # SpliceVI
 
-SpliceVI is a multimodal variational autoencoder that jointly models **gene expression** and **alternative splicing** (junction usage / PSI) from single-cell data. It learns a shared low-dimensional latent space that captures variation across both modalities, enabling tasks like imputation, clustering, trajectory inference, and differential splicing analysis.
+SpliceVI is a multimodal variational autoencoder that jointly models **gene expression** and **alternative splicing** (junction usage / PSI) from single-cell data. It learns a joint low-dimensional latent space from both modalities, which is used to impute junction usage and to test for differential splicing and expression.
 
-SpliceVI follows the same overall architecture and inherits the same scvi-tools mixins as [MultiVI](https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html) (Ashuach et al., 2021), which jointly models RNA-seq and chromatin accessibility. The key difference is that the ATAC branch is replaced throughout by a **splicing-specific branch** — a missingness-aware encoder, a splicing-specific decoder, and splicing likelihoods (Binomial / Beta-Binomial / Dirichlet-Multinomial) suited to the PSI scale. The DE/DS analysis API mirrors MultiVI's, with `get_normalized_splicing` and `differential_splicing` replacing the accessibility equivalents.
+SpliceVI follows the same overall architecture and inherits the same scvi-tools mixins as [MultiVI](https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html) (Ashuach et al., 2021), which jointly models RNA-seq and chromatin accessibility. The key difference is that the ATAC branch is replaced throughout by a **splicing-specific branch**, with a missingness-aware encoder, a splicing-specific decoder, and splicing likelihoods (Binomial / Beta-Binomial / Dirichlet-Multinomial) suited to the PSI scale. The DE/DS analysis API mirrors MultiVI's, with `get_normalized_splicing` and `differential_splicing` replacing the accessibility equivalents.
 
 > Ashuach T\*, Gabitto MI\*, Jordan MI, Yosef N. *MultiVI: deep generative model for the integration of multi-modal data.* bioRxiv, 2021.
 
@@ -10,7 +10,7 @@ SpliceVI follows the same overall architecture and inherits the same scvi-tools 
 
 ## Model overview
 
-SpliceVI uses two separate encoder branches — one for gene expression and one for splicing — whose posteriors are mixed into a joint latent space. Two decoder branches reconstruct each modality from the joint latent.
+SpliceVI uses two separate encoder branches, one for gene expression and one for splicing, whose posteriors are mixed into a joint latent space. Two decoder branches reconstruct each modality from the joint latent.
 
 ```
 Gene expression ──► GE Encoder ──► q(z|x_e) ──┐
@@ -20,36 +20,40 @@ Splicing (PSI) ───► Splice Encoder ──► q(z|x_s) ─┘            
 
 ### Splicing encoder
 
-Because splicing observations are highly sparse — many junctions are unobserved in a given cell — SpliceVI uses a **missingness-aware partial encoder** (`PartialEncoderEDDI`). The design draws inspiration from the [EDDI framework](https://arxiv.org/abs/1809.11142) (Ma et al., 2019), which handles pervasive missing values in VAEs using feature embeddings and exchangeable neural networks (see also the [SpliceVI preprint](https://www.biorxiv.org/content/10.1101/2025.11.26.690853v1)). The encoder:
+Because splicing observations are highly sparse (many junctions are unobserved in a given cell), SpliceVI uses a **missingness-aware partial encoder** (`PartialEncoderEDDIFaster`). The design draws inspiration from the [EDDI framework](https://arxiv.org/abs/1809.11142) (Ma et al., 2019), which handles pervasive missing values in VAEs using feature embeddings and exchangeable neural networks (see also the [SpliceVI preprint](https://www.biorxiv.org/content/10.1101/2025.11.26.690853v1)). The encoder works in three steps.
 
-1. Embeds each *observed* junction independently via a shared $h$ network
-2. Pools the per-junction embeddings (mean or sum) across all observed junctions in a cell
+1. Embeds each *observed* junction independently via a shared $h$ network. By default (`psi_input="deviation"`) the
+   input is how much the junction's usage in the cell differs from its usage across all cells, so that which
+   junctions are detected carries no signal on its own
+2. Pools the per-junction embeddings across all observed junctions in a cell (divided by a fixed number, the median
+   number of observed junctions per training cell)
 3. Maps the pooled representation through an MLP to produce posterior statistics $(\mu, \sigma^2)$
 
-This avoids any imputation of missing values at the input level and is more principled than masking or zero-filling.
+Unobserved junctions are left out of the input rather than set to zero, so no values are imputed at the input.
 
 ### Splicing likelihood
 
-Three options are supported:
+Three options are supported.
 
 | Option | Description |
 |--------|-------------|
 | `binomial` | Simple binomial over junction read counts |
 | `beta_binomial` | Beta-binomial with a learned per-junction concentration $\phi_j$ |
-| `dirichlet_multinomial` | Dirichlet-multinomial grouped per ATSE event; enforces that junction probabilities within an event sum to 1 |
+| `dirichlet_multinomial` | Dirichlet-multinomial over the junctions of each ATSE, with a learned concentration per ATSE, so junction probabilities within an ATSE sum to 1 |
 
-The default and recommended option is `dirichlet_multinomial`.
+The default, used for the paper's models, is `dirichlet_multinomial`.
 
 ### Modality mixing
 
-The two per-modality posteriors are combined into a single joint posterior before sampling. The mixing strategy is controlled by the `modality_weights` argument, and follows the same parameterization as MultiVI:
+The two per-modality posteriors are combined into a single joint posterior before sampling. The mixing strategy is controlled by the `modality_weights` argument. `equal`, `universal` and `cell` are the options of MultiVI.
 
 | Option | Description |
 |--------|-------------|
-| `equal` | Fixed 50/50 average |
+| `equal` | Fixed 50/50 average (default) |
 | `universal` | One global learned weight per modality |
 | `cell` | Per-cell learned weights |
-| `concatenate` | Concatenate both latents — no mixing, doubled latent size |
+| `per_dimension_weighted_average` | One learned splicing weight per latent dimension, with mean weight 0.5 |
+| `concatenate` | Concatenate both latents (no mixing, doubled latent size) |
 
 ---
 
@@ -76,13 +80,13 @@ The two per-modality posteriors are combined into a single joint posterior befor
 | `code_dim` | 64 | Per-junction embedding size (partial encoder) |
 | `h_hidden_dim` | 128 | Hidden width of per-junction $h$ network |
 | `encoder_hidden_dim` | 128 | Hidden width of the post-pooling MLP |
-| `psi_input` | `deviation` | Partial-encoder input: junction usage minus its population usage (`raw` = usage itself) |
+| `psi_input` | `deviation` | Partial-encoder input, the junction usage minus its population usage (`raw` uses the usage itself) |
 | `decoder_intercept_init` | `population` | Splicing-decoder bias starts at the population junction usage |
 | `decoder_depth_covariates` | `True` | Depth inputs (detected genes, observed junctions, library size) into both decoders |
 | `modality_penalty` | `None` | Alignment penalty between the two posteriors (`Jeffreys`, `MMD`) |
 | `variance_mixing` | `squared` | How the two posterior variances combine into the joint variance |
 
-These defaults are the settings of the paper's models; `SPLICEVI.preset("paper")` returns the same values, including
+These defaults are the settings of the paper's models. `SPLICEVI.preset("paper")` returns the same values, including
 the training settings.
 
 ---

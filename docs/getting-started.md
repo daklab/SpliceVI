@@ -23,18 +23,20 @@ This installs all dependencies from `pyproject.toml`. After installation, `from 
 
 ## Data format
 
-SpliceVI expects a [MuData](https://mudata.readthedocs.io/) object with two modalities:
+SpliceVI expects a [MuData](https://mudata.readthedocs.io/) object with two modalities that hold the same cells:
 
-- `rna` — raw gene expression counts `(cells × genes)`
-- `splice` — junction usage ratios (PSI values) `(cells × junctions)`
+- `rna` holds gene expression `(cells × genes)`. The model reads `layers["length_norm"]`, and the library size of each
+  cell is in `mdata.obsm["X_library_size"]`.
+- `splicing` holds the junctions `(cells × junctions)`, with these layers:
+    - `cell_by_junction_matrix`, the reads of each junction
+    - `cell_by_cluster_matrix`, the reads of the junction's ATSE, repeated for each junction of the ATSE
+    - `junc_ratio`, the junction usage (PSI), which is junction reads / ATSE reads and 0 where the ATSE has no reads
+    - `psi_mask`, which is 1 where the ATSE has reads in the cell and 0 otherwise
 
-The splicing modality also requires:
+  Its `var["event_id"]` gives the ATSE each junction belongs to.
 
-- `junc_counts` — integer junction read counts `(cells × junctions)`
-- `atse_counts` — total read counts at the ATSE level `(cells × junctions)`
-- `psi_observed_mask` — binary mask indicating which junctions are observed per cell
-
-See the [SplicingDataset](https://daklab.github.io/LeafletFA/data-layer/splicingdataset/) documentation in LeafletFA for utilities to construct this format from raw data.
+These are the default names of `SPLICEVI.setup_mudata`, and other names can be passed to it. The
+[SpliceVI MuData Object](data-format.md) page describes every field. See the [SplicingDataset](https://daklab.github.io/LeafletFA/data-layer/splicingdataset/) documentation in LeafletFA for utilities to construct this format from raw data.
 
 ---
 
@@ -61,10 +63,19 @@ model.save("models/my_run/")
 
 ### Using the SLURM script
 
-Configure paths and hyperparameters at the top of `train_splicevi.sh`, then:
+`train_splicevi.py` trains one model from a MuData file. Every argument of `SPLICEVI(...)` and `train()` is also a
+command-line flag, and flags left out keep the paper defaults.
 
 ```bash
-sbatch train_splicevi.sh
+python train_splicevi.py --train_mdata_path train_data.h5mu --model_dir models/my_run --batch_key mouse.id --seed 1
+python train_splicevi.py --help     # all flags with their defaults
+```
+
+`train_splicevi.sh` runs the same command as a SLURM job. Set the data path, output folder and batch key at its top
+(other settings go in its `EXTRA_ARGS` line, for example `EXTRA_ARGS="--max_epochs 100 --lr 5e-4"`) and submit it.
+
+```bash
+mkdir -p logs && sbatch train_splicevi.sh
 ```
 
 ---
@@ -81,6 +92,6 @@ latent = model.get_latent_representation()          # (cells × n_latent)
 z_expr = model.get_latent_representation(modality="expression")
 z_spl  = model.get_latent_representation(modality="splicing")
 
-# Imputed PSI values
-psi = model.get_normalized_splicing()               # (cells × junctions)
+# Imputed PSI values: posterior mean junction usage given each cell's reads
+psi = model.get_normalized_splicing_DM()            # (cells × junctions)
 ```

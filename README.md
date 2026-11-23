@@ -4,8 +4,8 @@
 
 SpliceVI is a variational autoencoder that models single-cell gene expression and alternative splicing together. It
 learns one latent space from both measurements and handles the high sparsity of single-cell splicing data: junction
-usage is modelled with a Dirichlet-multinomial likelihood over the junctions of each alternative splicing event
-(ATSE), and the splicing encoder only reads the junctions observed in each cell. With a trained model you can
+usage is modelled with a Dirichlet-multinomial likelihood over the junctions of each alternative transcript structure
+event (ATSE), and the splicing encoder only reads the junctions observed in each cell. With a trained model you can
 
 - embed cells in a joint, expression-only or splicing-only latent space,
 - impute junction usage (PSI) and expression for every cell, including junctions without reads,
@@ -105,14 +105,16 @@ junction read counts, is on the [data format page](https://daklab.github.io/Spli
   paper's settings. `SPLICEVI.preset("paper", atlas="tms")` returns them as dictionaries, with the variant used for the
   Tabula Muris Senis models (batch correction over mice); `SPLICEVI.preset("sparse")` gives the settings of the models
   for sparse data.
-- **Differential splicing** compares junction usage between the groups; a junction is called when the posterior
-  probability that |ΔPSI| exceeds `delta` (default 0.1) passes the FDR rule at `fdr_target` (default 0.05). By default
+- **Differential splicing** compares junction usage between the groups. Each junction is scored by the posterior
+  probability that ΔPSI is at least `delta` (default 0.1) in one direction, and junctions are called at a posterior
+  expected false discovery rate of `fdr_target` (default 0.05). By default
   each Monte Carlo sample draws every cell's PSI from its Dirichlet-multinomial posterior
   (`norm_splicing_function="dm_posterior_sample"`). `n_obs_group1` / `n_obs_group2` count the cells with reads for the
   junction; `splicevi.filter_read_support(ds, min_units=3)` keeps junctions with reads in at least 3 cells (or
   metacells) of each group, as in the paper.
 - **Differential expression** compares the expected expression under the zero-inflated negative binomial
-  (`norm_expression_function="zinb_expected"`), so that differences absorbed by the dropout probability are not missed.
+  (`norm_expression_function="zinb_expected"`). The dropout probability can absorb part of a difference between groups,
+  and this setting largely corrects the fold changes that the decoder output alone would shrink.
 - **Repeatable results.** Pass `seed=` to `differential_splicing` / `differential_expression` for the same table on
   every call. Setting `scvi.settings.seed` before building the model makes training repeatable on the same machine
   (results on a GPU can still differ slightly between runs).

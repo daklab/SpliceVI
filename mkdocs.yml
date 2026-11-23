@@ -4,12 +4,26 @@ site_url: https://daklab.github.io/SpliceVI
 repo_url: https://github.com/daklab/SpliceVI
 repo_name: daklab/SpliceVI
 
+# Helper code for the build, not a page of the site.
+exclude_docs: |
+  *.py
+
 theme:
   name: material
+  # Colors follow the paper's figures (teal = SpliceVI); set in docs/stylesheets/extra.css.
   palette:
     - scheme: default
-      primary: green
-      accent: light green
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
   features:
     - navigation.tabs
     - navigation.sections
@@ -28,6 +42,10 @@ plugins:
             show_root_heading: true
             heading_level: 3
             show_signature_annotations: false
+            # Parameter descriptions that SPLICEVI shares with scvi-tools are filled in when the package is imported;
+            # this extension shows the filled-in text instead of the placeholders in the source.
+            extensions:
+              - docs/fill_in_shared_docstrings.py:FillInSharedDocstrings
 
 markdown_extensions:
   - admonition
@@ -46,6 +64,9 @@ markdown_extensions:
   - attr_list
   - pymdownx.arithmatex:
       generic: true
+
+extra_css:
+  - stylesheets/extra.css
 
 extra_javascript:
   - javascripts/mathjax.js

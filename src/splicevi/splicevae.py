@@ -404,7 +404,6 @@ class SPLICEVAE(BaseModuleClass):
 
     Parameters
     ----------
-    # --- Data & bookkeeping ---
     n_input_genes : int
         Number of gene expression features (G).
     n_input_junctions : int
@@ -419,8 +418,6 @@ class SPLICEVAE(BaseModuleClass):
         Category counts for each categorical covariate provided.
     n_continuous_cov : int, default 0
         Number of continuous covariates.
-
-    # --- Likelihoods & dispersion (expression) ---
     gene_likelihood : {"zinb","nb","poisson"}, default "zinb"
         Expression likelihood.
     gene_dispersion : {"gene","gene-batch","gene-label","gene-cell"}, default "gene"
@@ -428,8 +425,6 @@ class SPLICEVAE(BaseModuleClass):
     use_size_factor_key : bool, default False
         If True, use provided library size factors for expression. Otherwise learn a
         library size encoder.
-
-    # --- Architecture toggles ---
     splicing_encoder_architecture : {"vanilla","partial"}, default "partial"
         Splicing encoder choice:
         "vanilla" uses a standard SCVI Encoder.
@@ -442,8 +437,6 @@ class SPLICEVAE(BaseModuleClass):
         Expression decoder:
         "vanilla" uses a non linear DecoderSCVI.
         "linear" uses a LinearDecoderSCVI.
-
-    # --- Shared SCVI-style encoder/decoder hyperparameters ---
     n_hidden : int or None, default None
         Hidden width for SCVI style MLPs. If None, defaults to roughly sqrt(J) capped at 128.
     n_latent : int or None, default 30
@@ -470,8 +463,6 @@ class SPLICEVAE(BaseModuleClass):
     encode_covariates : bool, default False
         Concatenate continuous covariates to encoder inputs and pass categorical
         covariates via n_cat_list.
-
-    # --- Splicing likelihood ---
     splicing_loss_type : {"binomial","beta_binomial","dirichlet_multinomial"}, default "dirichlet_multinomial"
         Reconstruction loss for splicing.
         "binomial" expects junction counts and ATSE totals.
@@ -514,8 +505,6 @@ class SPLICEVAE(BaseModuleClass):
         per-ATSE concentration is not identified from the data, so the draw only adds variance
         between replicates. ``"prior"`` samples phi from the Gamma prior (clamped above the floor)
         and inverts softplus.
-
-    # --- PartialEncoder knobs (splicing_encoder_architecture="partial") ---
     code_dim : int, default 64
         Dimensionality of per junction codes before pooling.
     h_hidden_dim : int, default 128
@@ -546,8 +535,6 @@ class SPLICEVAE(BaseModuleClass):
         value used for every cell is the buffer ``decoder_covariate_value`` unless ``decoder_covariate_batch`` (one row
         per cell) is set, as during :meth:`SPLICEVI.finetune_decoders`. Added after training by
         :meth:`add_decoder_covariates`; 0 = no covariate inputs. Vanilla decoders only.
-
-    # --- Modality mixing ---
     modality_weights : {"equal","cell","universal","concatenate","per_dimension_weighted_average"}, default "equal"
         How to combine expression and splicing posteriors.
         "per_dimension_weighted_average" learns a per-latent-dimension splicing contribution

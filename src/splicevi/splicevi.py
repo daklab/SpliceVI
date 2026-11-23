@@ -1136,7 +1136,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             Whether to return the mean of the samples.
         return_numpy
             Return a numpy array instead of a pandas DataFrame.
-        %(de_silent)s
+        silent
+            If True, disables the progress bar.
         expected
             If True, return the ZINB expected expression :math:`(1 - \pi) \rho_n`, with :math:`\pi` the decoder's
             dropout probability, instead of :math:`\rho_n`. Only for ``gene_likelihood="zinb"``. Used by DE with
