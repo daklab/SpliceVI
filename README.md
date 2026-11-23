@@ -38,11 +38,11 @@ SpliceVI/
 ├── src/splicevi/
 │   ├── splicevi.py          # SPLICEVI model class for GE+AS (training, inference, DE, DS)
 │   ├── splicevae.py         # VAE module for GE+AS (encoders, decoders, splicing likelihoods)
+│   ├── presets.py           # The paper's settings as dictionaries (the class defaults are the "paper" preset)
+│   ├── finetune.py          # Fine-tuning the decoders on a new atlas
 │   └── __init__.py          # Package exports
 ├── train_splicevi.py        # Training entry point
-├── eval_splicevi.py         # Evaluation entry point (UMAPs, metrics, imputation)
 ├── train_splicevi.sh        # SLURM job script for training
-├── eval_splicevi.sh         # SLURM job script for evaluation
 ├── pyproject.toml           # Package configuration
 └── requirements.txt         # Full conda environment freeze
 ```
@@ -55,15 +55,15 @@ Configure paths and hyperparameters at the top of the shell scripts, then submit
 
 ```bash
 sbatch train_splicevi.sh
-sbatch eval_splicevi.sh
 ```
 
 Or run directly:
 
 ```bash
 python train_splicevi.py --help
-python eval_splicevi.py --help
 ```
+
+The evaluation script used during development (`eval_splicevi.py`) is on the `splicevi-extended` branch.
 
 ### Future additions:
 - [ ] Add `tutorial.ipynb` for a walkthrough of model setup, training, and application to other datasets.

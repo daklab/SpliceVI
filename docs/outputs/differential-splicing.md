@@ -26,7 +26,7 @@ An FDR-controlled call of differential features is made using a target FDR thres
 
 ## Differential Expression
 
-DE compares **normalized gene expression** between two groups using `get_normalized_expression` (see [Imputed Splicing & Expression](imputed.md)).
+DE compares **normalized gene expression** between two groups. By default (`norm_expression_function="zinb_expected"`) this is the ZINB expected expression, (1 − dropout probability) × the decoder output (`get_normalized_expression(expected=True)`, see [Imputed Splicing & Expression](imputed.md)): with a ZINB likelihood the dropout probability can absorb part of a difference between groups, which the decoder output alone then misses. `norm_expression_function="decoder"` compares the decoder output, as scVI and MultiVI do; `"zinb_posterior_mean"` and `"zinb_posterior_sample"` use each cell's ZINB posterior given its observed counts.
 
 The **effect size** follows the standard scVI convention — a log-fold change:
 
@@ -44,6 +44,7 @@ de_results = model.differential_expression(
     group2="Astrocyte",
     delta=0.25,
     fdr_target=0.05,
+    norm_expression_function="zinb_expected",   # the default
 )
 ```
 
@@ -57,7 +58,7 @@ $$
 \text{effect size} = \hat{\psi}^{(2)}_j - \hat{\psi}^{(1)}_j
 $$
 
-where $\hat{\psi}^{(k)}_j$ is the posterior mean PSI for junction $j$ in group $k$, computed using the [DM posterior mean](imputed.md#dm-normalized-splicing-posterior-mean-psi) by default (`norm_splicing_function="dm_posterior_mean"`). You can switch to the raw decoder output with `norm_splicing_function="decoder"`.
+where $\hat{\psi}^{(k)}_j$ is the PSI for junction $j$ in group $k$. By default (`norm_splicing_function="dm_posterior_sample"`) each Monte Carlo sample draws every cell's PSI from its [DM posterior](imputed.md#dm-normalized-splicing-posterior-mean-psi), so per-cell read uncertainty enters `proba_ds`. `norm_splicing_function="dm_posterior_mean"` uses the posterior mean instead, and `norm_splicing_function="decoder"` the decoder output alone.
 
 ```python
 ds_results = model.differential_splicing(
@@ -67,7 +68,7 @@ ds_results = model.differential_splicing(
     group2="Astrocyte",
     delta=0.10,
     fdr_target=0.05,
-    norm_splicing_function="dm_posterior_mean",   # recommended
+    norm_splicing_function="dm_posterior_sample",   # the default
 )
 ```
 

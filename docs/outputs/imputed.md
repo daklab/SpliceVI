@@ -60,4 +60,4 @@ psi_dm = model.get_normalized_splicing_DM(
 # returns DataFrame of shape (cells × junctions)
 ```
 
-This DM-normalized PSI is also the default quantity used internally by `differential_splicing` (see [Differential Expression & Splicing](differential-splicing.md)).
+`differential_splicing` uses the same posterior: by default it draws one sample from it per Monte Carlo sample (`norm_splicing_function="dm_posterior_sample"`), and `norm_splicing_function="dm_posterior_mean"` uses this mean (see [Differential Expression & Splicing](differential-splicing.md)).

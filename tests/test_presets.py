@@ -1,4 +1,5 @@
-"""Tests for splicevi.presets: the presets equal the stored (i') rep-1 records, and class defaults are untouched. Run: pytest tests/test_presets.py"""
+"""Tests for splicevi.presets: the presets equal the stored records of the paper models, and the class defaults equal the
+"paper" preset. Run: pytest tests/test_presets.py"""
 import inspect
 import json
 import os
@@ -65,10 +66,39 @@ def test_analysis_settings():
     d = pd.DataFrame(dict(n_obs_group1=[3, 2, 9], n_obs_group2=[3, 9, 2])); assert len(filter_read_support(d)) == 1
 
 
-def test_class_defaults_unchanged():
-    i = {k: p.default for k, p in inspect.signature(SPLICEVI.__init__).parameters.items()}; t = {k: p.default for k, p in inspect.signature(SPLICEVI.train).parameters.items()}
-    assert (i["psi_input"], i["decoder_intercept_init"], i["decoder_depth_covariates"], i["psi_prior_pseudocount"], i["dropout_rate"]) == ("raw", "default", False, 0.0, 0.1)
-    assert (t["max_epochs"], t["batch_size"], t["adversarial_mixing"]) == (500, 128, True)
+def _defaults(function):
+    return {name: parameter.default for name, parameter in inspect.signature(function).parameters.items()}
+
+
+def test_class_defaults_are_the_paper_settings():
+    """Every model, training, DS and DE default equals the "paper" preset.
+
+    The one exception is adversarial_mixing: the default is True, which scvi-tools switches off when the data has a single
+    batch (the Allen setting, False in the preset) and keeps on with a batch key (the TMS setting, True)."""
+    cfg = SPLICEVI.preset("paper")
+    model_defaults, train_defaults = _defaults(SPLICEVI.__init__), _defaults(SPLICEVI.train)
+    for name, value in cfg["init"].items():
+        assert model_defaults[name] == value, name
+    for name, value in cfg["train"].items():
+        if name != "adversarial_mixing":
+            assert train_defaults[name] == value, name
+    assert train_defaults["adversarial_mixing"] is True and SPLICEVI.preset("paper", atlas="tms")["train"]["adversarial_mixing"] is True
+    ds_defaults, de_defaults = _defaults(SPLICEVI.differential_splicing), _defaults(SPLICEVI.differential_expression)
+    for name, value in cfg["ds"].items():
+        assert ds_defaults[name] == value, name
+    for name, value in cfg["de"].items():
+        assert de_defaults[name] == value, name
+
+
+def test_module_defaults_match_the_model_defaults():
+    """SPLICEVAE's defaults equal SPLICEVI's for every setting the two share (the module is built with all of them passed)."""
+    from splicevi.splicevae import SPLICEVAE
+    model_defaults, module_defaults = _defaults(SPLICEVI.__init__), _defaults(SPLICEVAE.__init__)
+    renamed = {"dispersion": "gene_dispersion"}
+    for name, value in model_defaults.items():
+        module_name = renamed.get(name, name)
+        if module_name in module_defaults and name not in ("n_genes", "n_junctions"):
+            assert module_defaults[module_name] == value, name
 
 
 @pytest.mark.parametrize("atlas,name,kappa", [("tms", "pipeline_20260927_231518_s5-std-devp_rep1", 0.0), ("allen", "pipeline_20261001_012113_s5-ab-devp_rep1", 0.0)])

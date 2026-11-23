@@ -1,4 +1,5 @@
-"""Unit tests for the splicing-encoder input option psi_input ("raw" default, "deviation"). Toy dimensions, CPU.
+"""Unit tests for the splicing-encoder input option psi_input ("deviation", the default, and "raw"). Toy dimensions, CPU.
+The toy module KW (from test_std_config) sets psi_input="raw"; tests pass "deviation" where they check it.
 Run: pytest tests/test_psi_input.py"""
 import numpy as np
 import pytest
@@ -22,13 +23,13 @@ def _with_pop(m, seed=3):
     return torch.tensor(pop, dtype=torch.float32)
 
 
-def test_raw_default_has_no_buffers():
+def test_raw_input_has_no_buffers():
     m = _module()
     assert m.z_encoder_splicing.psi_input == "raw"
     assert not hasattr(m.z_encoder_splicing, "pop_psi") and not hasattr(m.z_encoder_splicing, "pool_divisor")
 
 
-def test_raw_explicit_matches_default():
+def test_raw_explicit_matches_toy_module():
     t = _toy(); a = _module(); b = _module(psi_input="raw")
     x, mask = t["junc_ratio"], t["psi_observed_mask"]
     for u, v in zip(_enc(a, x, mask), _enc(b, x, mask)):

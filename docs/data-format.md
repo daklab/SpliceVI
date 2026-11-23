@@ -95,13 +95,10 @@ from splicevi import SPLICEVI
 
 mdata = mudata.read_h5mu("train_70_30_combined.h5mu")
 
-SPLICEVI.setup_mudata(
-    mdata,
-    rna_layer="length_norm",
-    batch_key="mouse.id",
-)
+# The layer and modality names above are the defaults, so only the batch key is given here.
+SPLICEVI.setup_mudata(mdata, batch_key="mouse.id")
 
-model = SPLICEVI(mdata, n_latent=30)
+model = SPLICEVI(mdata)
 ```
 
 See [Getting Started](getting-started.md) for a full training example.

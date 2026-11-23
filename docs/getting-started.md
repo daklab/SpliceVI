@@ -48,26 +48,13 @@ from splicevi import SPLICEVI
 
 mdata = mudata.read_h5mu("train_data.h5mu")
 
-SPLICEVI.setup_mudata(
-    mdata,
-    rna_layer=None,           # use .X for raw counts
-    batch_key="mouse.id",
-)
+# Layer and modality names default to the layout in "SpliceVI MuData Object";
+# pass e.g. rna_layer="raw_counts" if your expression counts are in another layer.
+SPLICEVI.setup_mudata(mdata, batch_key="mouse.id")
 
-model = SPLICEVI(
-    mdata,
-    n_latent=30,
-    splicing_loss_type="dirichlet_multinomial",
-    splicing_encoder_architecture="partial",
-    modality_weights="equal",
-)
-
-model.train(
-    max_epochs=800,
-    batch_size=256,
-    n_epochs_kl_warmup=200,
-    lr=1e-4,
-)
+# The defaults are the paper's model and training settings.
+model = SPLICEVI(mdata)
+model.train()
 
 model.save("models/my_run/")
 ```

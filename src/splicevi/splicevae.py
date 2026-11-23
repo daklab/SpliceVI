@@ -19,7 +19,7 @@ from torch.special import gammaln
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Building blocks of the splicing branch: grouped log-sum-exp over the junctions of each ATSE, the log-beta helper of
+# Components of the splicing branch: grouped log-sum-exp over the junctions of each ATSE, the log-beta helper of
 # the Dirichlet-multinomial likelihood, the partial (missing-data aware) splicing encoder and the linear decoder.
 # ----------------------------------------------------------------------------------------------------------------------
 
@@ -394,6 +394,9 @@ class SPLICEVAE(BaseModuleClass):
 
     Reconstruction is performed per modality. Optional penalties align the two posteriors.
 
+    The defaults are the settings of the paper's models (the same as :class:`SPLICEVI`'s defaults). The model class
+    always passes every setting explicitly, so these defaults only matter when the module is built directly.
+
     Parameters
     ----------
     # --- Data & bookkeeping ---
@@ -422,7 +425,7 @@ class SPLICEVAE(BaseModuleClass):
         library size encoder.
 
     # --- Architecture toggles ---
-    splicing_encoder_architecture : {"vanilla","partial"}, default "vanilla"
+    splicing_encoder_architecture : {"vanilla","partial"}, default "partial"
         Splicing encoder choice:
         "vanilla" uses a standard SCVI Encoder.
         "partial" uses PartialEncoderEDDIFaster.
@@ -438,8 +441,8 @@ class SPLICEVAE(BaseModuleClass):
     # --- Shared SCVI-style encoder/decoder hyperparameters ---
     n_hidden : int or None, default None
         Hidden width for SCVI style MLPs. If None, defaults to roughly sqrt(J) capped at 128.
-    n_latent : int or None, default None
-        Latent dimensionality. If None, defaults to roughly sqrt(n_hidden).
+    n_latent : int or None, default 30
+        Latent dimensionality. If None, roughly sqrt(n_hidden).
         When modality_weights="concatenate", the mixed latent is doubled internally.
     n_layers_encoder : int, default 2
         Depth of SCVI encoders (expression branch and splicing branch when splicing_encoder_architecture="vanilla").
@@ -447,7 +450,7 @@ class SPLICEVAE(BaseModuleClass):
     n_layers_decoder : int, default 2
         Depth of non linear decoders (expression "vanilla", splicing "vanilla").
         Not used by linear decoders.
-    dropout_rate : float, default 0.1
+    dropout_rate : float, default 0.01
         Dropout for SCVI style MLPs.
     use_batch_norm : {"encoder","decoder","none","both"}, default "none"
         Apply BatchNorm to encoder or decoder stacks.
@@ -464,7 +467,7 @@ class SPLICEVAE(BaseModuleClass):
         covariates via n_cat_list.
 
     # --- Splicing likelihood ---
-    splicing_loss_type : {"binomial","beta_binomial","dirichlet_multinomial"}, default "beta_binomial"
+    splicing_loss_type : {"binomial","beta_binomial","dirichlet_multinomial"}, default "dirichlet_multinomial"
         Reconstruction loss for splicing.
         "binomial" expects junction counts and ATSE totals.
         "beta_binomial" uses a beta binomial with a learned concentration.
@@ -500,20 +503,34 @@ class SPLICEVAE(BaseModuleClass):
         to the population PSI; entries with reads are dominated by their data. 0 = off (original behavior).
     phi_prior_shape, phi_prior_rate : float, defaults 2.0, 0.1
         Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).
-    phi_init : {"log100","prior"}, default "log100"
-        ``"log100"`` is the original init (raw ``log_phi_j`` ~ N(log 100, 0.5), which after
-        softplus is phi ~ 4.6). ``"prior"`` samples phi from the Gamma prior (clamped above
-        the floor) and inverts softplus.
+    phi_init : {"constant","log100","prior"}, default "constant"
+        ``"constant"`` starts every raw ``log_phi_j`` at exactly log 100 (phi ~ 4.6 after softplus).
+        ``"log100"`` adds a random draw to that start (raw ``log_phi_j`` ~ N(log 100, 0.5)); the
+        per-ATSE concentration is not identified from the data, so the draw only adds variance
+        between replicates. ``"prior"`` samples phi from the Gamma prior (clamped above the floor)
+        and inverts softplus.
 
     # --- PartialEncoder knobs (splicing_encoder_architecture="partial") ---
-    code_dim : int, default 16
+    code_dim : int, default 64
         Dimensionality of per junction codes before pooling.
-    h_hidden_dim : int, default 64
+    h_hidden_dim : int, default 128
         Hidden width of the per junction h subnetwork that combines PSI and feature embedding.
     encoder_hidden_dim : int, default 128
         Hidden width of the post pooling MLP that maps the pooled code to (mu, log var) of z.
     pool_mode : {"mean","sum"}, default "mean"
         Aggregation of per junction codes within each cell.
+    psi_input : {"deviation","raw"}, default "deviation"
+        Input of the partial splicing encoder. ``"deviation"``: each observed junction's PSI minus its
+        read-weighted population PSI (buffer ``pop_psi``, filled by the model class), the per-junction
+        network's output at zero deviation is subtracted, and the pool is divided by a fixed number
+        (the median number of observed junctions per training cell, buffer ``pool_divisor``), so the
+        pooled code does not carry the number of observed junctions. Needs ``pool_mode="mean"``.
+        ``"raw"``: the observed PSI itself, averaged over the observed junctions.
+    decoder_depth_covariates : bool, default True
+        Give both decoders (never the encoders) three standardized depth inputs per cell: log1p
+        detected genes, log1p observed junctions and log1p library size (standardized with the
+        training data's mean and standard deviation, buffers ``depth_cov_mean`` / ``depth_cov_std``).
+        Vanilla splicing decoder only.
     max_nobs : int, default -1
         Optional cap on the number of observed entries processed in each scatter chunk.
         A negative value disables chunking.
@@ -531,7 +548,7 @@ class SPLICEVAE(BaseModuleClass):
         "per_dimension_weighted_average" learns a per-latent-dimension splicing contribution
         weight w_d in [0,1] (expression weight = 1-w_d), constrained so the mean weight
         stays at 0.5 (preventing one modality from dominating globally).
-    modality_penalty : {"Jeffreys","MMD","None"}, default "Jeffreys"
+    modality_penalty : {"Jeffreys","MMD","None"}, default "None"
         Alignment penalty between the two posteriors on paired cells.
     mask_cells_without_splicing : bool, default False
         If True, a cell with no observed junction (``psi_observed_mask`` all 0) is treated as
@@ -539,17 +556,17 @@ class SPLICEVAE(BaseModuleClass):
         excluded from the modality-alignment penalty. If False (original behavior) every cell
         always counts as having splicing, so a cell with no splicing reads still has its
         (uninformed) splicing posterior averaged into the joint latent.
-    variance_mixing : {"sqrt_weights","linear","squared"}, default "sqrt_weights"
+    variance_mixing : {"sqrt_weights","linear","squared"}, default "squared"
         How the two encoders' variances are combined into the joint posterior variance for
         ``modality_weights`` in {"equal","cell","universal","per_dimension_weighted_average"}
         (ignored for "concatenate"). The mean is always the weighted average of means.
-        ``"sqrt_weights"`` (default, previous behavior): for equal/cell/universal the MultiVI
+        ``"sqrt_weights"``: for equal/cell/universal the MultiVI
         heuristic sum(sqrt(w) * v) (~1.41x the average variance under equal weights); for
         per_dimension_weighted_average this value keeps that mode's original rule
         (sum(w * std))**2, the variance of an average of perfectly correlated errors.
         ``"linear"`` uses sum(w * v) (no inflation). ``"squared"`` uses sum(w**2 * v), the
         variance of a weighted average of independent Gaussians (per-dimension w in the
-        per-dimension mode).
+        per-dimension mode); the default.
 
     **model_kwargs
         Forwarded to underlying components.
@@ -578,16 +595,16 @@ class SPLICEVAE(BaseModuleClass):
         use_size_factor_key: bool = False,
 
         # --- Architecture toggles ---
-        splicing_encoder_architecture: Literal["vanilla", "partial"] = "vanilla",
+        splicing_encoder_architecture: Literal["vanilla", "partial"] = "partial",
         splicing_decoder_architecture: Literal["vanilla", "linear"] = "vanilla",
         expression_architecture: Literal["vanilla", "linear"] = "vanilla",
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int = None,  # width for SCVI encoders/decoders
-        n_latent: int = None,  # latent dim for SCVI encoders/decoders
+        n_latent: int | None = 30,  # latent dim for SCVI encoders/decoders
         n_layers_encoder: int = 2,
         n_layers_decoder: int = 2,  # not used by linear decoder
-        dropout_rate: float = 0.1,
+        dropout_rate: float = 0.01,
         use_batch_norm: Literal["encoder", "decoder", "none", "both"] = "none",
         use_layer_norm: Literal["encoder", "decoder", "none", "both"] = "both",
         latent_distribution: Literal["normal", "ln"] = "normal",
@@ -603,23 +620,23 @@ class SPLICEVAE(BaseModuleClass):
         phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
-        phi_init: Literal["log100", "prior", "constant"] = "log100",
+        phi_init: Literal["log100", "prior", "constant"] = "constant",
         psi_prior_pseudocount: float = 0.0,
 
         # --- PartialEncoder (splicing_encoder_architecture="partial") knobs ---
-        code_dim: int = 16,
-        h_hidden_dim: int = 64,
+        code_dim: int = 64,
+        h_hidden_dim: int = 128,
         encoder_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum"] = "mean",
-        psi_input: Literal["raw", "deviation"] = "raw",   # splicing-encoder input: raw psi, or deviation (psi - population psi, h(0) subtracted, fixed pool divisor)
-        decoder_depth_covariates: bool = False,      # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders); STAGE5 s68.4a
+        psi_input: Literal["raw", "deviation"] = "deviation",   # splicing-encoder input: deviation (psi - population psi, h(0) subtracted, fixed pool divisor) or raw psi
+        decoder_depth_covariates: bool = True,       # [log1p detected genes, log1p observed junctions, log1p library size] into both decoders (never the encoders)
         max_nobs: int = -1,
         n_decoder_covariates: int = 0,               # zero-initialized covariate inputs into the first layer of both decoders (e.g. technology); 0 = none
 
         # --- Modality mixing ---
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
-        modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
-        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
+        modality_penalty: Literal["Jeffreys", "MMD", "None"] = "None",
+        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "squared",
         mask_cells_without_splicing: bool = False,
 
         # --- Misc ---

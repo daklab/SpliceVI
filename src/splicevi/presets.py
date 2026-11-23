@@ -1,14 +1,20 @@
-"""Named recipes for SpliceVI: the settings behind the paper's models, kept apart from the class defaults, which do not change.
+"""Presets: the settings of the paper's SpliceVI models, as dictionaries.
 
-    cfg = SPLICEVI.preset("paper", atlas="allen")
+The class defaults of SPLICEVI (model, training, differential splicing and differential expression) are the "paper"
+preset, so SPLICEVI(mdata) and model.train() already use it. The presets are useful for the variants and to see every
+setting in one place:
+
+    cfg = SPLICEVI.preset("paper", atlas="tms")
     SPLICEVI.setup_mudata(mdata, batch_key=cfg["setup"]["batch_key"], ...)
-    model = SPLICEVI(mdata, n_genes=mdata["rna"].n_vars, n_junctions=mdata["splicing"].n_vars, **cfg["init"]); model.train(**cfg["train"])
+    model = SPLICEVI(mdata, **cfg["init"]); model.train(**cfg["train"])
     ds = filter_read_support(model.differential_splicing(adata=mdata, groupby=..., group1=..., group2=..., **cfg["ds"]), **cfg["ds_filter"])
     de = model.differential_expression(adata=mdata, groupby=..., group1=..., group2=..., **cfg["de"])
 
-"paper" is the full-depth recipe. "sparse" is the same recipe for EasySci-like depth; it differs only when joint=True.
-Both presets use psi_prior_pseudocount 0 (decision 2026-11-06: the psi prior stays in the code as an option, not in a preset).
-Values come from the stored records of the rep-1 checkpoints; tests/test_presets.py checks them against those records.
+"paper" is the full-depth setting (Allen by default; atlas="tms" adds the batch key mouse.id and the adversarial batch
+classifier). "sparse" is the setting for EasySci-like depth; it equals "paper" unless joint=True (a reference atlas and
+a sparse atlas in one object: batch key technology, dispersion per batch). Neither preset uses the junction-usage
+pseudo-count term (psi_prior_pseudocount 0); it remains a model option.
+The values come from the stored records of the first replicate of each paper model; tests/test_presets.py checks them.
 """
 import copy
 
@@ -86,11 +92,11 @@ _DE = {"norm_expression_function": "zinb_expected", "fdr_target": 0.05}
 
 
 def preset(name, atlas=None, joint=False):
-    """Return {"setup", "init", "train", "ds", "ds_filter", "de"} for a named recipe.
+    """Return {"setup", "init", "train", "ds", "ds_filter", "de"} for a named preset.
 
-    name: "paper" (full depth) or "sparse" (EasySci-like depth). Both psi_prior_pseudocount 0; set it on the model to use the psi prior.
-    atlas ("paper" only): None or "allen" gives the Allen recipe (no batch key, no adversarial classifier). "tms" gives the TMS recipe
-        (batch key mouse.id, adversarial classifier on z). The two checkpoints share every other setting.
+    name: "paper" (full depth) or "sparse" (EasySci-like depth). Both use psi_prior_pseudocount 0.
+    atlas ("paper" only): None or "allen" gives the Allen settings (no batch key, no adversarial classifier). "tms" gives the TMS
+        settings (batch key mouse.id, adversarial classifier on z). The two models share every other setting.
     joint ("sparse" only): True for a reference + sparse model on one object: batch key technology, dispersion gene-batch.
     """
     if name not in ("paper", "sparse"):

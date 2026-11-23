@@ -79,9 +79,9 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
         self,
         module: BaseModuleClass,
         *,
-        # keep all your existing AdversarialTrainingPlan args here…
-        lr_scheduler_type: Literal["plateau", "step"] = "plateau",
-        step_size: int = 10,
+        # every other AdversarialTrainingPlan argument is passed through **kwargs
+        lr_scheduler_type: Literal["plateau", "step"] = "step",
+        step_size: int = 400,
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
         cross_gate_mode: str = "hard",
@@ -280,139 +280,147 @@ class MyAdvTrainingPlan(AdversarialTrainingPlan):
             opt2.step()
 
 class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin):
-    """Integration of gene expression and alternative splicing signals.
+    """Joint model of gene expression and alternative splicing (junction usage) in single cells.
 
-    SPLICEVI integrates gene expression and alternative splicing (junction-usage) modalities,
-    learning a joint latent space with reconstruction heads per modality. It wraps the
-    :class:`~scvi.module.SPLICEVAE` module and adds training utilities and convenience APIs.
+    SPLICEVI learns one latent space from both modalities: an expression encoder and a splicing encoder each give a
+    posterior over the latent space, the two are mixed into a joint posterior, and one decoder per modality
+    reconstructs the data (zero-inflated negative binomial for expression, Dirichlet-multinomial over the junctions of
+    each ATSE for splicing). It wraps the :class:`~splicevi.splicevae.SPLICEVAE` module.
+
+    The defaults are the settings of the paper's models, so ``SPLICEVI(mdata)`` followed by ``model.train()`` trains
+    the paper's model. :meth:`preset` returns the same settings as dictionaries, with the variants for a batch key
+    (``atlas="tms"``) and for a reference plus a sparse atlas (``"sparse"``, ``joint=True``). 
 
     Parameters
     ----------
     adata
-        AnnData/MuData object that has been registered via
-        :meth:`~scvi.model.SPLICEVI.setup_anndata` or
-        :meth:`~scvi.model.SPLICEVI.setup_mudata`.
-
-    # --- Modality mixing ---
-    modality_weights
-        How to weight modalities when forming the joint latent:
-        * ``"equal"`` – equal weight per modality,
-        * ``"universal"`` – one global weight per modality (learned),
-        * ``"cell"`` – per-cell weights (learned),
-        * ``"concatenate"`` – do not mix; concatenate per-modality latents,
-        * ``"per_dimension_weighted_average"`` – one learned splicing weight per latent
-          dimension (expression weight = 1 - splicing weight), constrained so the mean
-          weight stays at 0.5 to prevent either modality from dominating globally.
-    modality_penalty
-        Alignment penalty across modalities: ``"Jeffreys"``, ``"MMD"``, or ``"None"``.
-    mask_cells_without_splicing
-        If True, cells with no observed junction get no splicing weight in the latent mix and are
-        excluded from the alignment penalty (default False = original behavior, where every cell
-        always counts as having splicing).
-    variance_mixing
-        How the two encoders' variances are combined, for every ``modality_weights`` except
-        ``"concatenate"``: ``"sqrt_weights"`` (default; for equal/cell/universal the MultiVI
-        heuristic, ~1.41x the average variance under equal weights; for
-        per_dimension_weighted_average it keeps that mode's original rule (sum(w*std))**2),
-        ``"linear"`` (sum(w*v)), or ``"squared"`` (sum(w**2 * v), variance of a weighted average
-        of independent Gaussians).
-
-    # --- Likelihoods & dispersion (expression) ---
-    gene_likelihood
-        Expression likelihood: ``"zinb"``, ``"nb"``, or ``"poisson"``.
-    dispersion
-        Expression dispersion parameterization: ``"gene"``, ``"gene-batch"``, ``"gene-label"``, or ``"gene-cell"``.
-
-    # --- Architecture toggles ---
-    splicing_encoder_architecture
-        Splicing encoder:
-        * ``"vanilla"`` – SCVI `Encoder`,
-        * ``"partial"`` – `PartialEncoderEDDIFaster`.
-    splicing_decoder_architecture
-        Splicing decoder:
-        * ``"vanilla"`` (default) – nonlinear `DecoderSplice`,
-        * ``"linear"`` – linear decoder.
-    expression_architecture
-        Expression decoder: ``"vanilla"`` (default, nonlinear) or ``"linear"`` (linear decoder).
-
-    # --- Shared SCVI-style encoder/decoder hyperparameters ---
-    n_hidden
-        Width of SCVI encoders/decoders. If `None`, uses √(n_junctions) (capped at 128).
-    n_latent
-        Joint latent dimensionality (per-modality before concatenation). If `None`, uses √(n_hidden).
-    n_layers_encoder
-        Hidden layers in encoders (including the post pooling MLP in the partial splicing encoder).
-    n_layers_decoder
-        Hidden layers in decoders (not used by the linear decoders).
-    dropout_rate
-        Dropout rate in MLPs.
-    use_batch_norm
-        Where to apply batch norm: ``"encoder"``, ``"decoder"``, ``"both"``, or ``"none"``.
-    use_layer_norm
-        Where to apply layer norm: ``"encoder"``, ``"decoder"``, ``"both"``, or ``"none"``.
-    latent_distribution
-        Latent distribution: ``"normal"`` or ``"ln"`` (logistic normal).
-    deeply_inject_covariates
-        If True, injects covariates at all decoder layers.
-    encode_covariates
-        If True, provides covariates to encoders.
-
-    # --- Splicing likelihood ---
-    splicing_loss_type
-        Splicing reconstruction loss: ``"binomial"``, ``"beta_binomial"``, or ``"dirichlet_multinomial"``.
-    dm_concentration
-        For Dirichlet multinomial: ``"atse"`` (per ATSE concentration) or ``"scalar"`` (single shared).
-    splicing_loss_weight
-        Scalar multiplier applied to the splicing reconstruction loss relative to the
-        expression reconstruction loss. Default 1.0 (unweighted).
-    lambda_prior
-        Weight of the L2 penalty shrinking the learned log-concentration (log_phi_j)
-        toward 0, active when splicing_loss_type is "beta_binomial" or
-        "dirichlet_multinomial". Default 1e-2. Set to 0.0 to disable. Only used when
-        ``phi_prior="l2_log"``.
-    phi_floor
-        Minimum DM concentration (``phi = phi_floor + softplus(log_phi_j)``). Default 0.0.
-    phi_prior
-        ``"l2_log"`` (default, original), ``"gamma"`` (MAP Gamma prior on phi, scaled by
-        1/n_obs) or ``"none"``.
-    phi_prior_shape, phi_prior_rate
-        Gamma prior parameters (defaults 2.0 and 0.1: mean 20, sd ~14).
-    phi_init
-        ``"log100"`` (default, original; effective phi ~4.6 after softplus) or ``"prior"``
-        (sample phi from the Gamma prior).
-
-    # --- PartialEncoder knobs (used when splicing_encoder_architecture="partial") ---
-    encoder_hidden_dim
-        Hidden width inside the PartialEncoder MLP that maps pooled junction codes to latent statistics.
-    code_dim
-        Dimensionality of per junction embeddings in PartialEncoderEDDIFaster.
-    h_hidden_dim
-        Hidden width of the shared h network that processes (psi, feature_embedding) for each observed junction.
-    pool_mode
-        Pooling across observed junctions per cell: ``"mean"`` or ``"sum"``.
-    max_nobs
-        Optional cap on the number of observed (cell, junction) pairs processed in a single scatter chunk.
-        Set to a negative value to disable chunking.
-    n_decoder_covariates
-        Number of zero-initialized covariate inputs into the first hidden layer of both decoders (default 0 = none).
-        Normally left at 0 and added by :meth:`finetune_decoders` (one input, technology: reference 0, query 1); a saved
-        fine-tuned model stores it, so :meth:`load` rebuilds the inputs. Vanilla decoders only.
-
-    # --- Dataset shape/bookkeeping (inferred when possible) ---
+        MuData object with the modalities ``"rna"`` and ``"splicing"``, registered with :meth:`setup_mudata`.
     n_genes
-        Number of gene expression features. Required if `adata` is AnnData.
+        Number of genes. Taken from the registered data when left as None.
     n_junctions
-        Number of splicing features. Required if `adata` is AnnData.
+        Number of junctions. Taken from the registered data when left as None.
+    modality_weights
+        How the two posteriors are mixed into the joint latent:
 
-    # --- Model-only options ---
-    initialize_embeddings_from_pca
-        If True and using the partial splicing encoder, initialize the per junction embedding
-        table via PCA on junction ratios.
+        * ``"equal"`` (default): equal weight per modality,
+        * ``"universal"``: one learned weight per modality,
+        * ``"cell"``: learned weights per cell,
+        * ``"concatenate"``: no mixing; the two latents are concatenated,
+        * ``"per_dimension_weighted_average"``: one learned splicing weight per latent dimension (expression weight =
+          1 - splicing weight), constrained so that the mean weight stays at 0.5.
+    modality_penalty
+        Penalty that aligns the two posteriors: ``"None"`` (default), ``"Jeffreys"`` or ``"MMD"``.
+    n_hidden
+        Width of the hidden layers of the encoders and decoders. If None (default), the square root of the number of
+        junctions, capped at 128.
+    n_latent
+        Dimension of the latent space (of each modality's latent before concatenation). Default 30. If None, the
+        square root of ``n_hidden``.
+    n_layers_encoder
+        Hidden layers in the encoders, including the network after pooling in the partial splicing encoder. Default 2.
+    n_layers_decoder
+        Hidden layers in the decoders (not used by the linear decoders). Default 2.
+    dropout_rate
+        Dropout rate in the hidden layers. Default 0.01.
+    use_batch_norm
+        Where to apply batch normalization: ``"encoder"``, ``"decoder"``, ``"both"`` or ``"none"`` (default).
+    use_layer_norm
+        Where to apply layer normalization: ``"encoder"``, ``"decoder"``, ``"both"`` (default) or ``"none"``.
+    latent_distribution
+        Latent distribution: ``"normal"`` (default) or ``"ln"`` (logistic normal).
+    deeply_inject_covariates
+        If True, covariates enter every decoder layer. Default False.
+    encode_covariates
+        If True, covariates are also given to the encoders. Default False.
+    gene_likelihood
+        Expression likelihood: ``"zinb"`` (default), ``"nb"`` or ``"poisson"``.
+    dispersion
+        Expression dispersion: ``"gene"`` (default), ``"gene-batch"``, ``"gene-label"`` or ``"gene-cell"``.
     fully_paired
-        If True, the model exposes only a joint latent (no modality specific latents).
-
+        If True, the model exposes only the joint latent (no latent per modality). Default False.
     **model_kwargs
-        Forwarded to :class:`~scvi.module.SPLICEVAE`.
+        Passed on to :class:`~splicevi.splicevae.SPLICEVAE`.
+
+    Other Parameters
+    ----------------
+    variance_mixing
+        How the two encoders' variances are combined into the joint posterior variance (every ``modality_weights``
+        except ``"concatenate"``; the joint mean is always the weighted average of the two means):
+
+        * ``"squared"`` (default): sum(w**2 * v), the variance of a weighted average of independent Gaussians,
+        * ``"sqrt_weights"``: for equal/cell/universal weights the MultiVI rule sum(sqrt(w) * v) (about 1.41 times the
+          average variance under equal weights); for ``per_dimension_weighted_average`` (sum(w * std))**2,
+        * ``"linear"``: sum(w * v).
+    mask_cells_without_splicing
+        If True, cells with no observed junction get no splicing weight in the joint latent and are left out of the
+        alignment penalty. Default False: every cell counts as having splicing.
+    splicing_loss_type
+        Splicing likelihood: ``"dirichlet_multinomial"`` (default), ``"beta_binomial"`` or ``"binomial"``.
+    dm_concentration
+        Dirichlet-multinomial concentration: ``"atse"`` (default; one learned concentration per ATSE) or ``"scalar"``
+        (one shared value).
+    splicing_loss_weight
+        Multiplier of the splicing reconstruction loss relative to the expression reconstruction loss. Default 1.0.
+    lambda_prior
+        Weight of the L2 penalty that pulls each learned log-concentration toward 0 (``phi_prior="l2_log"`` only).
+        Default 0.01; 0.0 turns it off.
+    phi_floor
+        Minimum concentration: ``phi = phi_floor + softplus(log_phi)``. Default 0.0.
+    phi_prior
+        Regularizer on the concentration: ``"l2_log"`` (default; see ``lambda_prior``), ``"gamma"`` (Gamma prior on
+        phi with ``phi_prior_shape`` and ``phi_prior_rate``, scaled by 1 / number of cells) or ``"none"``.
+    phi_prior_shape, phi_prior_rate
+        Shape and rate of the Gamma prior. Defaults 2.0 and 0.1 (mean 20).
+    phi_init
+        Starting concentration: ``"constant"`` (default; every ATSE starts at the same value, phi about 4.6),
+        ``"log100"`` (the same start plus a random draw per ATSE) or ``"prior"`` (a draw from the Gamma prior).
+    psi_prior_pseudocount
+        Strength of the pseudo-count term on the decoded junction usage: adds
+        ``-psi_prior_pseudocount * sum_j pop_psi_j * log(psi_j)`` per cell, i.e. that many virtual reads per ATSE
+        distributed as the read-weighted population usage of the training data. Dirichlet-multinomial only.
+        Default 0.0 (off).
+    splicing_encoder_architecture
+        Splicing encoder: ``"partial"`` (default; reads only the observed junctions of each cell) or ``"vanilla"``
+        (scvi-tools ``Encoder`` on the full junction vector).
+    splicing_decoder_architecture
+        Splicing decoder: ``"vanilla"`` (default; nonlinear) or ``"linear"``.
+    expression_architecture
+        Expression decoder: ``"vanilla"`` (default; nonlinear) or ``"linear"``.
+    encoder_hidden_dim
+        Width of the network after pooling in the partial splicing encoder. Default 128.
+    code_dim
+        Size of the learned embedding of each junction in the partial splicing encoder. Default 64.
+    h_hidden_dim
+        Width of the network that combines each observed junction's input with its embedding. Default 128.
+    pool_mode
+        Pooling over the observed junctions of a cell: ``"mean"`` (default) or ``"sum"``.
+    psi_input
+        Input of the partial splicing encoder: ``"deviation"`` (default; each observed junction's usage minus its
+        read-weighted population usage, pooled with a fixed divisor so the pooled code does not carry the number of
+        observed junctions; needs ``pool_mode="mean"``) or ``"raw"`` (the observed usage itself).
+    decoder_intercept_init
+        Starting bias of the splicing decoder: ``"population"`` (default; set so that the decoder starts at the
+        read-weighted population usage of the training data) or ``"default"`` (PyTorch's initialization).
+    decoder_depth_covariates
+        If True (default), both decoders (never the encoders) receive three standardized depth inputs per cell: log1p
+        detected genes, log1p observed junctions and log1p library size. Vanilla splicing decoder only.
+    max_nobs
+        Largest number of observed (cell, junction) pairs processed in one chunk by the partial encoder; a negative
+        value (default -1) processes a batch in one chunk.
+    n_decoder_covariates
+        Number of zero-initialized covariate inputs into the first hidden layer of both decoders. Default 0. Normally
+        left at 0 and added by :meth:`finetune_decoders` (one input, technology); a saved fine-tuned model stores it,
+        so :meth:`load` rebuilds the inputs. Vanilla decoders only.
+    initialize_embeddings_from_pca
+        If True (default) and the splicing encoder is ``"partial"``, the junction embeddings start from a truncated SVD
+        of the junction usage matrix.
+
+    Examples
+    --------
+    >>> SPLICEVI.setup_mudata(mdata)   # the paper's layer names; add batch_key if there is one
+    >>> model = SPLICEVI(mdata)
+    >>> model.train()
+    >>> latent = model.get_latent_representation()
     """
     _module_cls = SPLICEVAE
     _training_plan_cls = MyAdvTrainingPlan
@@ -425,16 +433,16 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
         # --- Modality mixing ---
         modality_weights: Literal["equal", "cell", "universal", "concatenate", "per_dimension_weighted_average"] = "equal",
-        modality_penalty: Literal["Jeffreys", "MMD", "None"] = "Jeffreys",
-        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "sqrt_weights",
+        modality_penalty: Literal["Jeffreys", "MMD", "None"] = "None",
+        variance_mixing: Literal["sqrt_weights", "linear", "squared"] = "squared",
         mask_cells_without_splicing: bool = False,
 
         # --- Shared SCVI-style encoder/decoder hyperparameters ---
         n_hidden: int | None = None,
-        n_latent: int | None = None,
+        n_latent: int | None = 30,
         n_layers_encoder: int = 2,
         n_layers_decoder: int = 2,
-        dropout_rate: float = 0.1,
+        dropout_rate: float = 0.01,
         use_batch_norm: Literal["encoder", "decoder", "none", "both"] = "none",
         use_layer_norm: Literal["encoder", "decoder", "none", "both"] = "both",
         latent_distribution: Literal["normal", "ln"] = "normal",
@@ -454,7 +462,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         phi_prior: Literal["l2_log", "gamma", "none"] = "l2_log",
         phi_prior_shape: float = 2.0,
         phi_prior_rate: float = 0.1,
-        phi_init: Literal["log100", "prior", "constant"] = "log100",
+        phi_init: Literal["log100", "prior", "constant"] = "constant",
         psi_prior_pseudocount: float = 0.0,
 
         # --- Architecture toggles ---
@@ -464,17 +472,17 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
         # --- PartialEncoder knobs (splicing_architecture="partial") ---
         encoder_hidden_dim: int = 128,
-        code_dim: int = 16,
-        h_hidden_dim: int = 64,
+        code_dim: int = 64,
+        h_hidden_dim: int = 128,
         pool_mode: Literal["mean", "sum"] = "mean",
-        psi_input: Literal["raw", "deviation"] = "raw",                      # splicing-encoder input; "deviation" = psi - population psi, h(0) subtracted, fixed pool divisor
-        decoder_intercept_init: Literal["default", "population"] = "default",  # STAGE5 s68.6: splicing-decoder bias = log(read-weighted population psi)
-        decoder_depth_covariates: bool = False,                               # STAGE5 s68.4a: depth/detection covariates into both decoders
+        psi_input: Literal["raw", "deviation"] = "deviation",                    # splicing-encoder input: psi - population psi, h(0) subtracted, fixed pool divisor
+        decoder_intercept_init: Literal["default", "population"] = "population",  # splicing-decoder bias starts at log(read-weighted population psi)
+        decoder_depth_covariates: bool = True,                                   # depth/detection covariates into both decoders
         max_nobs: int = -1,
         n_decoder_covariates: int = 0,                                        # decoder covariate inputs (e.g. technology); set by finetune_decoders
 
         # --- Model-only helpers ---
-        initialize_embeddings_from_pca: bool = False,
+        initialize_embeddings_from_pca: bool = True,
         fully_paired: bool = False,
 
         # (module bookkeeping inferred from data managers)
@@ -482,12 +490,15 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     ):
         super().__init__(adata)
 
+        # Numbers of genes and junctions: taken from the registered modalities when not given.
         if n_genes is None or n_junctions is None:
-            assert isinstance(adata, MuData), (
-                "n_genes and n_junctions must be provided if using AnnData"
-            )
-            n_genes = self.summary_stats.get("n_vars", 0)
-            n_junctions = self.summary_stats.get("n_junc", 0)
+            if not isinstance(adata, MuData):
+                raise ValueError("n_genes and n_junctions must be provided if using AnnData")
+            registry = self.adata_manager.data_registry
+            if n_genes is None:
+                n_genes = self.adata[registry[REGISTRY_KEYS.X_KEY].mod_key].n_vars
+            if n_junctions is None:
+                n_junctions = self.adata[registry["junc_ratio"].mod_key].n_vars
 
         n_cats_per_cov = (
             self.adata_manager.get_state_registry(REGISTRY_KEYS.CAT_COVS_KEY).n_cats_per_key
@@ -716,17 +727,22 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         if not sp.issparse(X):
             X = sp.csr_matrix(X)
 
-        # fit a (code_dim)-component SVD on the sparse X
-        svd = TruncatedSVD(n_components=self.module.z_encoder_splicing.code_dim,
+        # Fit a code_dim-component SVD on the sparse junction-usage matrix. A small dataset may not support code_dim
+        # components; then only the first columns of the embedding start from the SVD and the rest keep their random start.
+        code_dim = self.module.z_encoder_splicing.code_dim
+        n_components = min(code_dim, X.shape[0] - 1, X.shape[1] - 1)
+        svd = TruncatedSVD(n_components=n_components,
                         algorithm="randomized")
         svd.fit(X)
 
         # components_.shape == (n_components, n_vars)
-        comps = svd.components_.T  # (n_vars, code_dim)
+        comps = svd.components_.T  # (n_vars, n_components)
 
         with torch.no_grad():
             emb = self.module.z_encoder_splicing.feature_embedding
-            emb.copy_(torch.as_tensor(comps, dtype=emb.dtype, device=emb.device))
+            emb[:, :n_components].copy_(torch.as_tensor(comps, dtype=emb.dtype, device=emb.device))
+        if n_components < code_dim:
+            print(f"Initialized {n_components} of {code_dim} feature-embedding columns from the SVD (small dataset).")
         print("Initialized feature embeddings...")
 
 
@@ -734,31 +750,31 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     @devices_dsp.dedent
     def train(
         self,
-        max_epochs: int = 500,
+        max_epochs: int = 300,
         lr: float = 1e-4,
         accelerator: str = "auto",
         devices: int | list[int] | str = "auto",
         train_size: float | None = None,
         validation_size: float | None = None,
         shuffle_set_split: bool = True,
-        batch_size: int = 128,
-        weight_decay: float = 1e-3,
+        batch_size: int = 256,
+        weight_decay: float = 1e-4,
         eps: float = 1e-08,
         early_stopping: bool = True,
         early_stopping_patience: int = 50,
         check_val_every_n_epoch: int | None = None,
         n_steps_kl_warmup: int | None = None,
-        n_epochs_kl_warmup: int | None = 50,
+        n_epochs_kl_warmup: int | None = 200,
         adversarial_mixing: bool = True,
-        lr_scheduler_type: Literal["plateau", "step"] = "plateau",
+        lr_scheduler_type: Literal["plateau", "step"] = "step",
         reduce_lr_on_plateau: bool = False,
-        lr_factor: float = 0.6,
+        lr_factor: float = 0.1,
         lr_patience: int = 30,
         lr_threshold: float = 0.0,
         lr_scheduler_metric: Literal[
             "elbo_validation", "reconstruction_loss_validation", "kl_local_validation"
         ] = "elbo_validation",
-        step_size: int = 10,
+        step_size: int = 400,
         gradient_clipping: bool = True,
         gradient_clipping_max_norm: float = 5.0,
         disable_cross_gate: bool = False,
@@ -769,14 +785,19 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         plan_kwargs: dict | None = None,
         **kwargs,
     ):
-        r"""Trains the model using amortized variational inference on gene expression and splicing modalities.
+        r"""Train the model with amortized variational inference on both modalities.
+
+        The defaults are the paper's training settings: 300 epochs, batch size 256, AdamW with learning rate 1e-4 and
+        weight decay 1e-4, KL warm-up over 200 epochs, early stopping on the validation reconstruction loss with
+        patience 50, and gradient clipping at norm 5. The step scheduler with ``step_size=400`` never lowers the
+        learning rate within 300 epochs, so the learning rate stays constant.
 
         Parameters
         ----------
         max_epochs
-            Number of epochs to train over.
+            Number of epochs. Default 300.
         lr
-            Learning rate for optimization.
+            Learning rate. Default 1e-4.
         accelerator, devices
             Hardware acceleration options.
         train_size, validation_size
@@ -784,25 +805,28 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         shuffle_set_split
             Whether to shuffle before splitting.
         batch_size
-            Minibatch size for training.
+            Minibatch size. Default 256.
         weight_decay, eps
-            Optimizer hyperparameters.
+            AdamW weight decay (default 1e-4) and epsilon (default 1e-8).
         early_stopping
-            Whether to enable early stopping.
+            Whether to stop early on the validation reconstruction loss. Default True.
         early_stopping_patience
-            Number of epochs with no improvement before stopping.
+            Number of epochs with no improvement before stopping. Default 50.
         check_val_every_n_epoch
             How often (in epochs) to run validation.
         n_steps_kl_warmup, n_epochs_kl_warmup
-            KL divergence warmup parameters (by steps or epochs).
+            KL warm-up length, in steps or in epochs (default 200 epochs).
         adversarial_mixing
-            Whether to include adversarial classifier during training.
+            Whether to train an adversarial batch classifier on the latent space. Default True; it is switched off
+            automatically when the data has a single batch (no batch key), as for the paper's Allen models, and is on
+            with a batch key, as for the paper's TMS models (batch key ``mouse.id``).
         lr_scheduler_type
-            Scheduler type in TrainingPlan: “plateau” (reduce-on-plateau) or “step” (fixed-step).
+            Learning-rate scheduler: ``"step"`` (default; multiply by ``lr_factor`` every ``step_size`` epochs) or
+            ``"plateau"`` (reduce on plateau).
         reduce_lr_on_plateau
             If True and using plateau scheduler, enable ReduceLROnPlateau.
         lr_factor
-            Multiplicative factor for LR reduction (used for both plateau and step schedulers).
+            Factor by which the learning rate is multiplied at each reduction (both schedulers). Default 0.1.
         lr_patience
             Number of epochs with no improvement for plateau scheduler.
         lr_threshold
@@ -810,7 +834,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         lr_scheduler_metric
             Metric to monitor for plateau scheduler.
         step_size
-            Epoch interval between LR drops (step scheduler).
+            Epochs between learning-rate reductions (step scheduler). Default 400.
         gradient_clipping
             Whether or not (true or false) to use gradient norm clipping
         gradient_clipping_max_norm
@@ -1600,7 +1624,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         batchid2: Iterable[str] | None = None,
         fdr_target: float = 0.05,
         silent: bool = False,
-        norm_expression_function: Literal["decoder", "zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"] = "decoder",
+        norm_expression_function: Literal["decoder", "zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"] = "zinb_expected",
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential expression analysis.
@@ -1625,15 +1649,21 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         %(de_fdr_target)s
         %(de_silent)s
         norm_expression_function
-            ``"decoder"`` (default; the original behavior): compare the decoder's expected expression
-            (:meth:`get_normalized_expression`, ``px_scale``). ``"zinb_expected"``: compare the ZINB expected
-            expression ``(1 - dropout) * px_scale``; with ZINB the dropout probability can absorb part of a
-            difference between groups, which ``px_scale`` then misses (on Allen Brain thinned to EasySci depth this
-            roughly doubled the fold changes towards the full-depth ones). ``"zinb_posterior_mean"``: compare the ZINB
-            posterior mean given each cell's observed counts (:meth:`get_normalized_expression_ZINB`), which
-            weighs in the raw data; ``"zinb_posterior_sample"``: one draw from that posterior per Monte Carlo
-            sample, so per-cell count uncertainty enters ``proba_de``. The three ZINB options need
-            ``gene_likelihood="zinb"``.
+            Which expression estimate the two groups are compared on:
+
+            * ``"zinb_expected"`` (default): the ZINB expected expression ``(1 - dropout) * px_scale``. With ZINB the
+              dropout probability can absorb part of a difference between groups, which ``px_scale`` alone then
+              misses (on Allen Brain data downsampled to EasySci depth this roughly doubled the fold changes towards
+              the full-depth ones). For a model with ``gene_likelihood="nb"`` or ``"poisson"`` there is no dropout,
+              so this is the decoder output.
+            * ``"decoder"``: the decoder output ``px_scale`` (:meth:`get_normalized_expression`), as in scVI and
+              MultiVI.
+            * ``"zinb_posterior_mean"``: the ZINB posterior mean given each cell's observed counts
+              (:meth:`get_normalized_expression_ZINB`), which weighs in the raw data.
+            * ``"zinb_posterior_sample"``: one draw from that posterior per Monte Carlo sample, so per-cell count
+              uncertainty enters ``proba_de``.
+
+            The two posterior options need ``gene_likelihood="zinb"``.
         **kwargs
             Additional keyword arguments for differential computation.
 
@@ -1645,13 +1675,19 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         adata = self._validate_anndata(adata)
 
         col_names = adata.var_names[: self.n_genes]
+
+        # Without zero inflation (NB or Poisson models) the expected expression is the decoder output itself.
+        uses_zinb = getattr(self.module, "gene_likelihood", None) == "zinb"
+        if norm_expression_function == "zinb_expected" and not uses_zinb:
+            norm_expression_function = "decoder"
+
         if norm_expression_function == "decoder":
             model_fn = partial(
                 self.get_normalized_expression,
                 batch_size=batch_size,
             )
         elif norm_expression_function in ("zinb_expected", "zinb_posterior_mean", "zinb_posterior_sample"):
-            if getattr(self.module, "gene_likelihood", None) != "zinb":
+            if not uses_zinb:
                 raise ValueError(
                     f"norm_expression_function={norm_expression_function!r} requires gene_likelihood='zinb' "
                     f"(this model uses {getattr(self.module, 'gene_likelihood', None)!r})."
@@ -1716,7 +1752,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         batchid2: Iterable[str] | None = None,
         fdr_target: float = 0.05,
         silent: bool = False,
-        norm_splicing_function: Literal["decoder", "dm_posterior_mean", "dm_posterior_sample"] = "dm_posterior_mean",
+        norm_splicing_function: Literal["decoder", "dm_posterior_mean", "dm_posterior_sample"] = "dm_posterior_sample",
         **kwargs,
     ) -> pd.DataFrame:
         r"""Differential splicing analysis.
@@ -1741,6 +1777,19 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         %(de_batchid2)s
         %(de_fdr_target)s
         %(de_silent)s
+        norm_splicing_function
+            Which junction-usage estimate the two groups are compared on:
+
+            * ``"dm_posterior_sample"`` (default): one draw per Monte Carlo sample from each cell's Beta posterior of
+              junction usage, which combines the decoded usage (weighted by the ATSE's concentration) with the cell's
+              own reads (:meth:`get_normalized_splicing_DM` with ``sample=True``), so per-cell read uncertainty enters
+              ``proba_ds``.
+            * ``"dm_posterior_mean"``: the mean of that posterior (``sample=False``).
+            * ``"decoder"``: the decoder's junction usage alone (:meth:`get_normalized_splicing`).
+
+            ``delta`` (default 0.1) is a threshold on the absolute difference in junction usage. The paper also keeps
+            only junctions observed in at least 3 cells of each group; apply that with
+            :func:`~splicevi.filter_read_support` on the returned table (it does not change the FDR calls).
         **kwargs
             Additional keyword arguments for differential computation.
 
@@ -2152,13 +2201,13 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     def setup_mudata(
         cls,
         mdata: MuData,
-        rna_layer: str | None = None,
-        junc_ratio_layer: str | None = None,
-        atse_counts_layer: str | None = None,
-        junc_counts_layer: str | None = None,
-        psi_mask_layer: str | None = None,
+        rna_layer: str | None = "length_norm",
+        junc_ratio_layer: str | None = "junc_ratio",
+        atse_counts_layer: str | None = "cell_by_cluster_matrix",
+        junc_counts_layer: str | None = "cell_by_junction_matrix",
+        psi_mask_layer: str | None = "psi_mask",
         batch_key: str | None = None,
-        size_factor_key: str | None = None,
+        size_factor_key: str | None = "X_library_size",
         categorical_covariate_keys: list[str] | None = None,
         continuous_covariate_keys: list[str] | None = None,
         idx_layer: str | None = None,
@@ -2167,48 +2216,48 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
     ):
         r"""Set up a MuData object for SPLICEVI.
 
+        The defaults are the layer and modality names of the paper's MuData files, so a file in that layout needs only
+        ``SPLICEVI.setup_mudata(mdata)`` (plus ``batch_key`` if there is one).
+
         Parameters
         ----------
         %(param_mdata)s
         rna_layer
-            Key in the RNA AnnData for gene expression counts.
-            If `None`, the primary data (`.X`) of that AnnData is used.
+            Layer of the RNA modality with the gene expression counts. Default ``"length_norm"``.
+            If `None`, the primary data (`.X`) of that modality is used.
         junc_ratio_layer
-            Key in the splicing AnnData for junction ratio values.
-            If `None`, the primary data (`.X`) of that AnnData is used.
+            Layer of the splicing modality with the junction usage (PSI) per cell and junction. Default
+            ``"junc_ratio"``. If `None`, the primary data (`.X`) of that modality is used.
         atse_counts_layer
-            Key in the splicing AnnData for total event counts.
-            If `None`, defaults to `"cell_by_cluster_matrix"`.
+            Layer of the splicing modality with the total reads of each junction's ATSE (repeated for every junction of
+            the ATSE). Default ``"cell_by_cluster_matrix"``.
         junc_counts_layer
-            Key in the splicing AnnData for observed junction counts.
-            If `None`, defaults to `"cell_by_junction_matrix"`.
+            Layer of the splicing modality with the reads of each junction. Default ``"cell_by_junction_matrix"``.
         psi_mask_layer
-            Layer with binary mask (1=observed, 0=missing) per junction.
+            Layer of the splicing modality with the observation mask (1 = observed, 0 = missing) per cell and junction.
+            Default ``"psi_mask"``.
         %(param_batch_key)s
         size_factor_key
-            Key in `mdata.obsm` for size factors.
+            Key in ``mdata.obsm`` for the library size factors. Default ``"X_library_size"``.
         %(param_cat_cov_keys)s
         %(param_cont_cov_keys)s
         %(idx_layer)s
-        %(param_modalities)s
+        modalities
+            Which modality holds each kind of data. Default ``{"rna_layer": "rna", "junc_ratio_layer": "splicing"}``:
+            expression in ``mdata["rna"]`` and every splicing layer in ``mdata["splicing"]``.
 
         Examples
         --------
-        >>> mdata = mu.MuData({
-        ...    "rna": ge_anndata.copy(),
-        ...    "splicing": atse_anndata.copy()
-        ... })
-        >>> scvi.model.SPLICEVI.setup_mudata(
-        ...     mdata,
-        ...     modalities={"rna_layer": "rna", "junc_ratio_layer": "splicing"},
-        ...     rna_layer="raw_counts",            # gene expression data is in the GE AnnData's "raw_counts" layer
-        ...     junc_ratio_layer="junc_ratio",     # splicing data is in the ATSE AnnData's "junc_ratio" layer
-        ... )
-        >>> model = scvi.model.SPLICEVI(mdata)
+        >>> mdata = mu.MuData({"rna": expression_anndata, "splicing": splicing_anndata})
+        >>> SPLICEVI.setup_mudata(mdata)                          # the paper's layer names
+        >>> SPLICEVI.setup_mudata(mdata, rna_layer="raw_counts")  # expression counts in another layer
+        >>> model = SPLICEVI(mdata)
         """
-        setup_method_args = cls._get_setup_method_args(**locals())
+        # Default layout: expression in mdata["rna"], every splicing layer in mdata["splicing"] (filled in before the
+        # setup arguments are recorded, so a saved model stores the mapping it used).
         if modalities is None:
-            raise ValueError("Modalities cannot be None.")
+            modalities = {"rna_layer": "rna", "junc_ratio_layer": "splicing"}
+        setup_method_args = cls._get_setup_method_args(**locals())
         modalities = cls._create_modalities_attr_dict(modalities, setup_method_args)
         mdata.obs["_indices"] = np.arange(mdata.n_obs)
 
@@ -2279,7 +2328,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             )
 
             if psi_mask_layer is None:
-                psi_mask_layer = "mask"
+                psi_mask_layer = "psi_mask"
             mudata_fields.append(
                 fields.MuDataLayerField(
                     "psi_observed_mask",  # internal key used by the model

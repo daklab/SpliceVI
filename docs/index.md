@@ -41,14 +41,10 @@ from splicevi import SPLICEVI
 
 mdata = mudata.read_h5mu("train_data.h5mu")
 
-SPLICEVI.setup_mudata(
-    mdata,
-    rna_layer="length_norm",
-    batch_key="mouse.id",
-)
+SPLICEVI.setup_mudata(mdata, batch_key="mouse.id")   # layer names default to the expected layout
 
-model = SPLICEVI(mdata, n_latent=30)
-model.train(max_epochs=800)
+model = SPLICEVI(mdata)   # defaults = the paper's settings
+model.train()
 
 latent = model.get_latent_representation()   # (cells × n_latent) joint latent space
 psi    = model.get_normalized_splicing()     # (cells × junctions) imputed PSI values

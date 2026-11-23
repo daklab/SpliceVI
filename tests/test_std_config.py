@@ -1,5 +1,8 @@
-"""Unit tests for the standard-config options: decoder_intercept_init="population" (STAGE5 68.6) and
-decoder_depth_covariates=True (STAGE5 68.4a). Toy dimensions, CPU. Run: pytest tests/test_std_config.py"""
+"""Unit tests for decoder_intercept_init="population" (splicing-decoder bias starts at the population junction usage) and
+decoder_depth_covariates=True (depth inputs into both decoders). Toy dimensions, CPU. Run: pytest tests/test_std_config.py
+
+KW builds the module without these options (raw encoder input, no depth inputs, Jeffreys penalty), as the toy tests were
+written before they became the defaults; each test switches on the option it checks."""
 import numpy as np
 import pytest
 import torch
@@ -12,7 +15,7 @@ CODES = np.repeat(np.arange(A), 3)
 KW = dict(n_input_genes=G, n_input_junctions=J, n_batch=2, n_obs=N, splicing_encoder_architecture="partial",
           splicing_decoder_architecture="vanilla", splicing_loss_type="dirichlet_multinomial", dm_concentration="atse",
           variance_mixing="squared", encoder_hidden_dim=16, code_dim=8, h_hidden_dim=16, n_latent=LAT, n_hidden=16,
-          dropout_rate=0.0, phi_init="constant")
+          dropout_rate=0.0, phi_init="constant", psi_input="raw", decoder_depth_covariates=False, modality_penalty="Jeffreys")
 
 
 def _j2a():
@@ -46,8 +49,8 @@ def _run(m, t):
     return inf, gen, m.loss(t, inf, gen)
 
 
-def test_defaults_off():
-    """Default construction: no depth buffers, decoders see the latent only, no depth_cov in the forward pass."""
+def test_depth_covariates_off():
+    """Without decoder_depth_covariates: no depth buffers, decoders see the latent only, no depth_cov in the forward pass."""
     m = _module(); inf, _, out = _run(m, _toy())
     assert not hasattr(m, "depth_cov_mean") and inf["depth_cov"] is None
     assert m.z_decoder_expression.px_decoder.fc_layers[0][0].in_features == LAT
@@ -55,7 +58,7 @@ def test_defaults_off():
 
 
 def test_depth_covariates_decoders_only():
-    """68.4a: three standardized covariates reach both decoders (+3 inputs); the encoders are unchanged."""
+    """Three standardized depth covariates reach both decoders (+3 inputs); the encoders are unchanged."""
     t = _toy(); m0 = _module(); m4 = _module(decoder_depth_covariates=True)
     inf, _, out = _run(m4, t)
     assert tuple(inf["depth_cov"].shape) == (N, 3)
@@ -76,7 +79,7 @@ def test_depth_covariates_linear_decoder_rejected():
 
 
 def test_population_intercept_reproduces_population_psi():
-    """68.6: with bias = log(clip(p_pop, 1e-4, 1)), the decoder's sigmoid -> clamp -> logit -> within-event softmax returns p_pop."""
+    """With bias = log(clip(p_pop, 1e-4, 1)), the decoder's sigmoid -> clamp -> logit -> within-event softmax returns p_pop."""
     j2a = _j2a(); p_pop = np.concatenate([np.random.default_rng(1).dirichlet(np.ones(3)) for _ in range(A)])
     p_pop[:3] = [0.9999, 1e-5, 0.0]   # an event with a zero-read junction: clipped, still sums to 1
     bias = torch.tensor(np.log(np.clip(p_pop, 1e-4, 1.0)), dtype=torch.float32).unsqueeze(0)
