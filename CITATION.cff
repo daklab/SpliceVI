@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use SpliceVI, please cite the paper below."
+title: "SpliceVI"
+abstract: "A joint model of single-cell gene expression and alternative splicing, built on scvi-tools."
+type: software
+version: 0.2.0
+repository-code: "https://github.com/daklab/SpliceVI"
+url: "https://daklab.github.io/SpliceVI/"
+authors:
+  - family-names: Vaidyanathan
+    given-names: Smriti
+  - family-names: Isaev
+    given-names: Keren
+  - family-names: Zweig
+    given-names: Aaron
+  - family-names: Knowles
+    given-names: David A.
+preferred-citation:
+  type: article
+  title: "Robust Integration of Sparse Single-Cell Alternative Splicing and Gene Expression Data with SpliceVI"
+  authors:
+    - family-names: Vaidyanathan
+      given-names: Smriti
+    - family-names: Isaev
+      given-names: Keren
+    - family-names: Zweig
+      given-names: Aaron
+    - family-names: Knowles
+      given-names: David A.
+  journal: "bioRxiv"
+  year: 2025
+  doi: "10.1101/2025.11.26.690853"

@@ -4,26 +4,42 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "splicevi"
-version = "0.1.0"
-description = "SpliceVI: a multi-modal VAE for joint RNA expression and splicing"
+version = "0.2.0"
+description = "SpliceVI: a joint model of single-cell gene expression and alternative splicing, built on scvi-tools"
+readme = "README.md"
 requires-python = ">=3.10"
+authors = [
+    { name = "Smriti Vaidyanathan" },
+    { name = "Keren Isaev" },
+    { name = "Aaron Zweig" },
+    { name = "David A. Knowles" },
+]
+keywords = ["single-cell", "alternative splicing", "variational autoencoder", "scvi-tools"]
+# Tested with torch 2.4.1, scvi-tools 1.4.1, numpy 1.26.4, scipy 1.16.3, pandas 2.3.3 and scikit-learn 1.8.0
+# (see environment.yml). scvi-tools is pinned to the 1.4 series because SpliceVI uses parts of its internal API.
 dependencies = [
     "torch>=2.4",
-    "scvi-tools>=1.4.1",
+    "scvi-tools>=1.4.1,<1.5",
     "mudata>=0.3",
     "anndata>=0.10",
     "numpy>=1.26",
     "scipy>=1.11",
     "pandas>=2.0",
     "scikit-learn>=1.3",
-    "scanpy>=1.9",
-    "tqdm",
-    "matplotlib",
-    "seaborn",
 ]
 
 [project.optional-dependencies]
+test = ["pytest>=8"]
+tutorials = ["scanpy>=1.9", "matplotlib", "seaborn", "jupyter"]
 wandb = ["wandb"]
+
+[project.urls]
+Documentation = "https://daklab.github.io/SpliceVI/"
+Source = "https://github.com/daklab/SpliceVI"
+Paper = "https://doi.org/10.1101/2025.11.26.690853"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

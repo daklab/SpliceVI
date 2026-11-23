@@ -3,11 +3,12 @@ __pycache__/
 *.py[codz]
 *$py.class
 
-tutorial.ipynb
-logs
-models
-wandb
-figures
+# Local outputs of training runs (anchored to the repository root, so docs/models/ is not ignored)
+/tutorial.ipynb
+/logs/
+/models/
+/wandb/
+/figures/
 
 # C extensions
 *.so
