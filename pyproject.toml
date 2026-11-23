@@ -7,7 +7,7 @@ name = "splicevi"
 version = "0.2.0"
 description = "SpliceVI: a joint model of single-cell gene expression and alternative splicing, built on scvi-tools"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"   # scvi-tools 1.4 needs Python 3.11 or newer
 authors = [
     { name = "Smriti Vaidyanathan" },
     { name = "Keren Isaev" },

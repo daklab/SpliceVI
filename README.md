@@ -24,7 +24,7 @@ Paper: Vaidyanathan S\*, Isaev K\*, Zweig A, Knowles DA. bioRxiv 2025, <https://
 
 ## Installation
 
-SpliceVI needs Python 3.10 or newer and PyTorch. Install the PyTorch build for your machine first
+SpliceVI needs Python 3.11 or newer and PyTorch. Install the PyTorch build for your machine first
 (<https://pytorch.org/get-started/locally/>), then:
 
 ```bash
