@@ -16,7 +16,7 @@
         <link rel="prev" href="../../data-format/">
       
       
-        <link rel="next" href="../eddisplice/">
+        <link rel="next" href="../../outputs/latent/">
       
       
         
@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -71,7 +73,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -127,7 +129,21 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
     
   
 </form>
@@ -670,6 +686,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.add_decoder_covariates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_decoder_covariates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.decoder_covariate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decoder_covariate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.SPLICEVI.differential_expression" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -685,6 +723,17 @@
     <span class="md-ellipsis">
       
         differential_splicing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.finetune_decoders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        finetune_decoders
       
     </span>
   </a>
@@ -725,6 +774,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.get_normalized_expression_ZINB" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_normalized_expression_ZINB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.SPLICEVI.get_normalized_splicing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -740,6 +800,127 @@
     <span class="md-ellipsis">
       
         get_normalized_splicing_DM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_decoder_intercept_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_decoder_intercept_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_depth_covariate_stats_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_depth_covariate_stats_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_feature_embedding_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_feature_embedding_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_junc2atse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_junc2atse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_pool_divisor_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_pool_divisor_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_pop_psi_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_pop_psi_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_psi_prior_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_psi_prior_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.make_junc2atse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        make_junc2atse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.population_psi_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        population_psi_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.preset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.set_decoder_covariate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        set_decoder_covariate
       
     </span>
   </a>
@@ -793,34 +974,6 @@
   
 </nav>
       
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../eddisplice/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    EDDISPLICE
-  
-
-    
-  </span>
-  
-  
-
-      </a>
     </li>
   
 
@@ -1214,6 +1367,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.add_decoder_covariates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_decoder_covariates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.decoder_covariate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decoder_covariate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.SPLICEVI.differential_expression" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1229,6 +1404,17 @@
     <span class="md-ellipsis">
       
         differential_splicing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.finetune_decoders" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        finetune_decoders
       
     </span>
   </a>
@@ -1269,6 +1455,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.get_normalized_expression_ZINB" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_normalized_expression_ZINB
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.SPLICEVI.get_normalized_splicing" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1284,6 +1481,127 @@
     <span class="md-ellipsis">
       
         get_normalized_splicing_DM
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_decoder_intercept_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_decoder_intercept_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_depth_covariate_stats_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_depth_covariate_stats_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_feature_embedding_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_feature_embedding_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_junc2atse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_junc2atse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_pool_divisor_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_pool_divisor_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_pop_psi_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_pop_psi_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.init_psi_prior_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_psi_prior_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.make_junc2atse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        make_junc2atse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.population_psi_from_adata" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        population_psi_from_adata
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.preset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        preset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.SPLICEVI.set_decoder_covariate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        set_decoder_covariate
       
     </span>
   </a>
@@ -1354,28 +1672,31 @@
 
 
 <h1 id="splicevi">SpliceVI</h1>
-<p>SpliceVI is a multimodal variational autoencoder that jointly models <strong>gene expression</strong> and <strong>alternative splicing</strong> (junction usage / PSI) from single-cell data. It learns a shared low-dimensional latent space that captures variation across both modalities, enabling tasks like imputation, clustering, trajectory inference, and differential splicing analysis.</p>
-<p>SpliceVI follows the same overall architecture and inherits the same scvi-tools mixins as <a href="https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html">MultiVI</a> (Ashuach et al., 2021), which jointly models RNA-seq and chromatin accessibility. The key difference is that the ATAC branch is replaced throughout by a <strong>splicing-specific branch</strong> — a missingness-aware encoder, a splicing-specific decoder, and splicing likelihoods (Binomial / Beta-Binomial / Dirichlet-Multinomial) suited to the PSI scale. The DE/DS analysis API mirrors MultiVI's, with <code>get_normalized_splicing</code> and <code>differential_splicing</code> replacing the accessibility equivalents.</p>
+<p>SpliceVI is a multimodal variational autoencoder that jointly models <strong>gene expression</strong> and <strong>alternative splicing</strong> (junction usage / PSI) from single-cell data. It learns a joint low-dimensional latent space from both modalities, which is used to impute junction usage and to test for differential splicing and expression.</p>
+<p>SpliceVI follows the same overall architecture and inherits the same scvi-tools mixins as <a href="https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html">MultiVI</a> (Ashuach et al., 2021), which jointly models RNA-seq and chromatin accessibility. The key difference is that the ATAC branch is replaced throughout by a <strong>splicing-specific branch</strong>, with a missingness-aware encoder, a splicing-specific decoder, and splicing likelihoods (Binomial / Beta-Binomial / Dirichlet-Multinomial) suited to the PSI scale. The DE/DS analysis API mirrors MultiVI's, with <code>get_normalized_splicing</code> and <code>differential_splicing</code> replacing the accessibility equivalents.</p>
 <blockquote>
 <p>Ashuach T*, Gabitto MI*, Jordan MI, Yosef N. <em>MultiVI: deep generative model for the integration of multi-modal data.</em> bioRxiv, 2021.</p>
 </blockquote>
 <hr />
 <h2 id="model-overview">Model overview</h2>
-<p>SpliceVI uses two separate encoder branches — one for gene expression and one for splicing — whose posteriors are mixed into a joint latent space. Two decoder branches reconstruct each modality from the joint latent.</p>
+<p>SpliceVI uses two separate encoder branches, one for gene expression and one for splicing, whose posteriors are mixed into a joint latent space. Two decoder branches reconstruct each modality from the joint latent.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Gene expression ──► GE Encoder ──► q(z|x_e) ──┐
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                                                ├──► Mix ──► z ──► GE Decoder ──► x_e
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Splicing (PSI) ───► Splice Encoder ──► q(z|x_s) ─┘              └──► Splice Decoder ──► x_s
 </code></pre></div>
 <h3 id="splicing-encoder">Splicing encoder</h3>
-<p>Because splicing observations are highly sparse — many junctions are unobserved in a given cell — SpliceVI uses a <strong>missingness-aware partial encoder</strong> (<code>PartialEncoderEDDI</code>). The design draws inspiration from the <a href="https://arxiv.org/abs/1809.11142">EDDI framework</a> (Ma et al., 2019), which handles pervasive missing values in VAEs using feature embeddings and exchangeable neural networks (see also the <a href="https://www.biorxiv.org/content/10.1101/2025.11.26.690853v1">SpliceVI preprint</a>). The encoder:</p>
+<p>Because splicing observations are highly sparse (many junctions are unobserved in a given cell), SpliceVI uses a <strong>missingness-aware partial encoder</strong> (<code>PartialEncoderEDDIFaster</code>). The design draws inspiration from the <a href="https://arxiv.org/abs/1809.11142">EDDI framework</a> (Ma et al., 2019), which handles pervasive missing values in VAEs using feature embeddings and exchangeable neural networks (see also the <a href="https://www.biorxiv.org/content/10.1101/2025.11.26.690853v1">SpliceVI preprint</a>). The encoder works in three steps.</p>
 <ol>
-<li>Embeds each <em>observed</em> junction independently via a shared <span class="arithmatex">\(h\)</span> network</li>
-<li>Pools the per-junction embeddings (mean or sum) across all observed junctions in a cell</li>
+<li>Embeds each <em>observed</em> junction independently via a shared <span class="arithmatex">\(h\)</span> network. By default (<code>psi_input="deviation"</code>) the
+   input is how much the junction's usage in the cell differs from its usage across all cells, so that which
+   junctions are detected carries no signal on its own</li>
+<li>Pools the per-junction embeddings across all observed junctions in a cell (divided by a fixed number, the median
+   number of observed junctions per training cell)</li>
 <li>Maps the pooled representation through an MLP to produce posterior statistics <span class="arithmatex">\((\mu, \sigma^2)\)</span></li>
 </ol>
-<p>This avoids any imputation of missing values at the input level and is more principled than masking or zero-filling.</p>
+<p>Unobserved junctions are left out of the input rather than set to zero, so no values are imputed at the input.</p>
 <h3 id="splicing-likelihood">Splicing likelihood</h3>
-<p>Three options are supported:</p>
+<p>Three options are supported.</p>
 <table>
 <thead>
 <tr>
@@ -1394,13 +1715,13 @@
 </tr>
 <tr>
 <td><code>dirichlet_multinomial</code></td>
-<td>Dirichlet-multinomial grouped per ATSE event; enforces that junction probabilities within an event sum to 1</td>
+<td>Dirichlet-multinomial over the junctions of each ATSE, with a learned concentration per ATSE, so junction probabilities within an ATSE sum to 1</td>
 </tr>
 </tbody>
 </table>
-<p>The default and recommended option is <code>dirichlet_multinomial</code>.</p>
+<p>The default, used for the paper's models, is <code>dirichlet_multinomial</code>.</p>
 <h3 id="modality-mixing">Modality mixing</h3>
-<p>The two per-modality posteriors are combined into a single joint posterior before sampling. The mixing strategy is controlled by the <code>modality_weights</code> argument, and follows the same parameterization as MultiVI:</p>
+<p>The two per-modality posteriors are combined into a single joint posterior before sampling. The mixing strategy is controlled by the <code>modality_weights</code> argument. <code>equal</code>, <code>universal</code> and <code>cell</code> are the options of MultiVI.</p>
 <table>
 <thead>
 <tr>
@@ -1411,7 +1732,7 @@
 <tbody>
 <tr>
 <td><code>equal</code></td>
-<td>Fixed 50/50 average</td>
+<td>Fixed 50/50 average (default)</td>
 </tr>
 <tr>
 <td><code>universal</code></td>
@@ -1422,8 +1743,12 @@
 <td>Per-cell learned weights</td>
 </tr>
 <tr>
+<td><code>per_dimension_weighted_average</code></td>
+<td>One learned splicing weight per latent dimension, with mean weight 0.5</td>
+</tr>
+<tr>
 <td><code>concatenate</code></td>
-<td>Concatenate both latents — no mixing, doubled latent size</td>
+<td>Concatenate both latents (no mixing, doubled latent size)</td>
 </tr>
 </tbody>
 </table>
@@ -1498,12 +1823,12 @@
 </tr>
 <tr>
 <td><code>code_dim</code></td>
-<td>16</td>
+<td>64</td>
 <td>Per-junction embedding size (partial encoder)</td>
 </tr>
 <tr>
 <td><code>h_hidden_dim</code></td>
-<td>64</td>
+<td>128</td>
 <td>Hidden width of per-junction <span class="arithmatex">\(h\)</span> network</td>
 </tr>
 <tr>
@@ -1511,8 +1836,35 @@
 <td>128</td>
 <td>Hidden width of the post-pooling MLP</td>
 </tr>
+<tr>
+<td><code>psi_input</code></td>
+<td><code>deviation</code></td>
+<td>Partial-encoder input, the junction usage minus its population usage (<code>raw</code> uses the usage itself)</td>
+</tr>
+<tr>
+<td><code>decoder_intercept_init</code></td>
+<td><code>population</code></td>
+<td>Splicing-decoder bias starts at the population junction usage</td>
+</tr>
+<tr>
+<td><code>decoder_depth_covariates</code></td>
+<td><code>True</code></td>
+<td>Depth inputs (detected genes, observed junctions, library size) into both decoders</td>
+</tr>
+<tr>
+<td><code>modality_penalty</code></td>
+<td><code>None</code></td>
+<td>Alignment penalty between the two posteriors (<code>Jeffreys</code>, <code>MMD</code>)</td>
+</tr>
+<tr>
+<td><code>variance_mixing</code></td>
+<td><code>squared</code></td>
+<td>How the two posterior variances combine into the joint variance</td>
+</tr>
 </tbody>
 </table>
+<p>These defaults are the settings of the paper's models. <code>SPLICEVI.preset("paper")</code> returns the same values, including
+the training settings.</p>
 <hr />
 <h2 id="api-reference">API reference</h2>
 
@@ -1534,10 +1886,14 @@
 
 
 
-        <p>Integration of gene expression and alternative splicing signals.</p>
-<p>SPLICEVI integrates gene expression and alternative splicing (junction-usage) modalities,
-learning a joint latent space with reconstruction heads per modality. It wraps the
-:class:<code>~scvi.module.SPLICEVAE</code> module and adds training utilities and convenience APIs.</p>
+        <p>Joint model of gene expression and alternative splicing (junction usage) in single cells.</p>
+<p>SPLICEVI learns one latent space from both modalities: an expression encoder and a splicing encoder each give a
+posterior over the latent space, the two are mixed into a joint posterior, and one decoder per modality
+reconstructs the data (zero-inflated negative binomial for expression, Dirichlet-multinomial over the junctions of
+each ATSE for splicing). It wraps the :class:<code>~splicevi.splicevae.SPLICEVAE</code> module.</p>
+<p>The defaults are the settings of the paper's models, so <code>SPLICEVI(mdata)</code> followed by <code>model.train()</code> trains
+the paper's model. :meth:<code>preset</code> returns the same settings as dictionaries, with the variants for a batch key
+(<code>atlas="tms"</code>) and for a reference plus a sparse atlas (<code>"sparse"</code>, <code>joint=True</code>). </p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1560,425 +1916,11 @@ learning a joint latent space with reconstruction heads per modality. It wraps t
             </td>
             <td>
               <div class="doc-md-description">
-                <p>AnnData/MuData object that has been registered via
-:meth:<code>~scvi.model.SPLICEVI.setup_anndata</code> or
-:meth:<code>~scvi.model.SPLICEVI.setup_mudata</code>.</p>
+                <p>MuData object with the modalities <code>"rna"</code> and <code>"splicing"</code>, registered with :meth:<code>setup_mudata</code>.</p>
               </div>
             </td>
             <td>
                 <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>modality_weights</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;equal&#39;, &#39;cell&#39;, &#39;universal&#39;, &#39;concatenate&#39;, &#39;per_dimension_weighted_average&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>How to weight modalities when forming the joint latent:
-* <code>"equal"</code> – equal weight per modality,
-* <code>"universal"</code> – one global weight per modality (learned),
-* <code>"cell"</code> – per-cell weights (learned),
-* <code>"concatenate"</code> – do not mix; concatenate per-modality latents,
-* <code>"per_dimension_weighted_average"</code> – one learned splicing weight per latent
-  dimension (expression weight = 1 - splicing weight), constrained so the mean
-  weight stays at 0.5 to prevent either modality from dominating globally.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;equal&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>modality_penalty</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;Jeffreys&#39;, &#39;MMD&#39;, &#39;None&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Alignment penalty across modalities: <code>"Jeffreys"</code>, <code>"MMD"</code>, or <code>"None"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;Jeffreys&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>gene_likelihood</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;zinb&#39;, &#39;nb&#39;, &#39;poisson&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Expression likelihood: <code>"zinb"</code>, <code>"nb"</code>, or <code>"poisson"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;zinb&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>dispersion</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;gene&#39;, &#39;gene-batch&#39;, &#39;gene-label&#39;, &#39;gene-cell&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Expression dispersion parameterization: <code>"gene"</code>, <code>"gene-batch"</code>, <code>"gene-label"</code>, or <code>"gene-cell"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;gene&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>splicing_encoder_architecture</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;partial&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Splicing encoder:
-* <code>"vanilla"</code> – SCVI <code>Encoder</code>,
-* <code>"partial"</code> – <code>PartialEncoderEDDIFaster</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;partial&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>splicing_decoder_architecture</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;linear&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Splicing decoder:
-* <code>"vanilla"</code> – nonlinear <code>DecoderSplice</code>,
-* <code>"linear"</code> – linear decoder.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;linear&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>expression_architecture</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;linear&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Expression decoder: <code>"vanilla"</code> (nonlinear) or <code>"linear"</code> (linear decoder).</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;linear&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_hidden</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Width of SCVI encoders/decoders. If <code>None</code>, uses √(n_junctions) (capped at 128).</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_latent</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Joint latent dimensionality (per-modality before concatenation). If <code>None</code>, uses √(n_hidden).</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_layers_encoder</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hidden layers in encoders (including the post pooling MLP in the partial splicing encoder).</p>
-              </div>
-            </td>
-            <td>
-                  <code>2</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_layers_decoder</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hidden layers in decoders (not used by the linear decoders).</p>
-              </div>
-            </td>
-            <td>
-                  <code>2</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>dropout_rate</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Dropout rate in MLPs.</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.1</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>use_batch_norm</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;encoder&#39;, &#39;decoder&#39;, &#39;none&#39;, &#39;both&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Where to apply batch norm: <code>"encoder"</code>, <code>"decoder"</code>, <code>"both"</code>, or <code>"none"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;none&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>use_layer_norm</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;encoder&#39;, &#39;decoder&#39;, &#39;none&#39;, &#39;both&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Where to apply layer norm: <code>"encoder"</code>, <code>"decoder"</code>, <code>"both"</code>, or <code>"none"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;both&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>latent_distribution</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;normal&#39;, &#39;ln&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Latent distribution: <code>"normal"</code> or <code>"ln"</code> (logistic normal).</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;normal&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>deeply_inject_covariates</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If True, injects covariates at all decoder layers.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>encode_covariates</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>If True, provides covariates to encoders.</p>
-              </div>
-            </td>
-            <td>
-                  <code>False</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>splicing_loss_type</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;binomial&#39;, &#39;beta_binomial&#39;, &#39;dirichlet_multinomial&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Splicing reconstruction loss: <code>"binomial"</code>, <code>"beta_binomial"</code>, or <code>"dirichlet_multinomial"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;dirichlet_multinomial&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>splicing_concentration</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Optional concentration for beta binomial. Ignored for binomial.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>dm_concentration</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;atse&#39;, &#39;scalar&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>For Dirichlet multinomial: <code>"atse"</code> (per ATSE concentration) or <code>"scalar"</code> (single shared).</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;atse&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>encoder_hidden_dim</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hidden width inside the PartialEncoder MLP that maps pooled junction codes to latent statistics.</p>
-              </div>
-            </td>
-            <td>
-                  <code>128</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>code_dim</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Dimensionality of per junction embeddings in PartialEncoderEDDIFaster.</p>
-              </div>
-            </td>
-            <td>
-                  <code>16</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>h_hidden_dim</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Hidden width of the shared h network that processes (psi, feature_embedding) for each observed junction.</p>
-              </div>
-            </td>
-            <td>
-                  <code>64</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>pool_mode</code>
-            </td>
-            <td>
-                  <code><span title="typing.Literal">Literal</span>[&#39;mean&#39;, &#39;sum&#39;]</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Pooling across observed junctions per cell: <code>"mean"</code> or <code>"sum"</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#39;mean&#39;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>max_nobs</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Optional cap on the number of observed (cell, junction) pairs processed in a single scatter chunk.
-Set to a negative value to disable chunking.</p>
-              </div>
-            </td>
-            <td>
-                  <code>-1</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1990,7 +1932,7 @@ Set to a negative value to disable chunking.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of gene expression features. Required if <code>adata</code> is AnnData.</p>
+                <p>Number of genes. Taken from the registered data when left as None.</p>
               </div>
             </td>
             <td>
@@ -2006,7 +1948,7 @@ Set to a negative value to disable chunking.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of splicing features. Required if <code>adata</code> is AnnData.</p>
+                <p>Number of junctions. Taken from the registered data when left as None.</p>
               </div>
             </td>
             <td>
@@ -2015,19 +1957,236 @@ Set to a negative value to disable chunking.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>initialize_embeddings_from_pca</code>
+                <code>modality_weights</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;equal&#39;, &#39;cell&#39;, &#39;universal&#39;, &#39;concatenate&#39;, &#39;per_dimension_weighted_average&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How the two posteriors are mixed into the joint latent:</p>
+<ul>
+<li><code>"equal"</code> (default): equal weight per modality,</li>
+<li><code>"universal"</code>: one learned weight per modality,</li>
+<li><code>"cell"</code>: learned weights per cell,</li>
+<li><code>"concatenate"</code>: no mixing; the two latents are concatenated,</li>
+<li><code>"per_dimension_weighted_average"</code>: one learned splicing weight per latent dimension (expression weight =
+  1 - splicing weight), constrained so that the mean weight stays at 0.5.</li>
+</ul>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;equal&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>modality_penalty</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;Jeffreys&#39;, &#39;MMD&#39;, &#39;None&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Penalty that aligns the two posteriors: <code>"None"</code> (default), <code>"Jeffreys"</code> or <code>"MMD"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;None&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_hidden</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Width of the hidden layers of the encoders and decoders. If None (default), the square root of the number of
+junctions, capped at 128.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_latent</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dimension of the latent space (of each modality's latent before concatenation). Default 30. If None, the
+square root of <code>n_hidden</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>30</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_layers_encoder</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hidden layers in the encoders, including the network after pooling in the partial splicing encoder. Default 2.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_layers_decoder</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Hidden layers in the decoders (not used by the linear decoders). Default 2.</p>
+              </div>
+            </td>
+            <td>
+                  <code>2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dropout_rate</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dropout rate in the hidden layers. Default 0.01.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.01</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>use_batch_norm</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;encoder&#39;, &#39;decoder&#39;, &#39;none&#39;, &#39;both&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Where to apply batch normalization: <code>"encoder"</code>, <code>"decoder"</code>, <code>"both"</code> or <code>"none"</code> (default).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;none&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>use_layer_norm</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;encoder&#39;, &#39;decoder&#39;, &#39;none&#39;, &#39;both&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Where to apply layer normalization: <code>"encoder"</code>, <code>"decoder"</code>, <code>"both"</code> (default) or <code>"none"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;both&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>latent_distribution</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;normal&#39;, &#39;ln&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Latent distribution: <code>"normal"</code> (default) or <code>"ln"</code> (logistic normal).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;normal&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>deeply_inject_covariates</code>
             </td>
             <td>
                   <code><span title="bool">bool</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If True and using the partial splicing encoder, initialize the per junction embedding
-table via PCA on junction ratios.</p>
+                <p>If True, covariates enter every decoder layer. Default False.</p>
               </div>
             </td>
             <td>
                   <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>encode_covariates</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, covariates are also given to the encoders. Default False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>gene_likelihood</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;zinb&#39;, &#39;nb&#39;, &#39;poisson&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression likelihood: <code>"zinb"</code> (default), <code>"nb"</code> or <code>"poisson"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;zinb&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>dispersion</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;gene&#39;, &#39;gene-batch&#39;, &#39;gene-label&#39;, &#39;gene-cell&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression dispersion: <code>"gene"</code> (default), <code>"gene-batch"</code>, <code>"gene-label"</code> or <code>"gene-cell"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;gene&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -2039,7 +2198,7 @@ table via PCA on junction ratios.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>If True, the model exposes only a joint latent (no modality specific latents).</p>
+                <p>If True, the model exposes only the joint latent (no latent per modality). Default False.</p>
               </div>
             </td>
             <td>
@@ -2054,7 +2213,7 @@ table via PCA on junction ratios.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Forwarded to :class:<code>~scvi.module.SPLICEVAE</code>.</p>
+                <p>Passed on to :class:<code>~splicevi.splicevae.SPLICEVAE</code>.</p>
               </div>
             </td>
             <td>
@@ -2063,6 +2222,327 @@ table via PCA on junction ratios.</p>
           </tr>
       </tbody>
     </table>
+
+
+<p><span class="doc-section-title">Other Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td><code>variance_mixing</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;sqrt_weights&#39;, &#39;linear&#39;, &#39;squared&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How the two encoders' variances are combined into the joint posterior variance (every <code>modality_weights</code>
+except <code>"concatenate"</code>; the joint mean is always the weighted average of the two means):</p>
+<ul>
+<li><code>"squared"</code> (default): sum(w**2 * v), the variance of a weighted average of independent Gaussians,</li>
+<li><code>"sqrt_weights"</code>: for equal/cell/universal weights the MultiVI rule sum(sqrt(w) * v) (about 1.41 times the
+  average variance under equal weights); for <code>per_dimension_weighted_average</code> (sum(w * std))**2,</li>
+<li><code>"linear"</code>: sum(w * v).</li>
+</ul>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>mask_cells_without_splicing</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, cells with no observed junction get no splicing weight in the joint latent and are left out of the
+alignment penalty. Default False: every cell counts as having splicing.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>splicing_loss_type</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;binomial&#39;, &#39;beta_binomial&#39;, &#39;dirichlet_multinomial&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Splicing likelihood: <code>"dirichlet_multinomial"</code> (default), <code>"beta_binomial"</code> or <code>"binomial"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>dm_concentration</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;atse&#39;, &#39;scalar&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Dirichlet-multinomial concentration: <code>"atse"</code> (default; one learned concentration per ATSE) or <code>"scalar"</code>
+(one shared value).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>splicing_loss_weight</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Multiplier of the splicing reconstruction loss relative to the expression reconstruction loss. Default 1.0.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>lambda_prior</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weight of the L2 penalty that pulls each learned log-concentration toward 0 (<code>phi_prior="l2_log"</code> only).
+Default 0.01; 0.0 turns it off.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>phi_floor</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum concentration: <code>phi = phi_floor + softplus(log_phi)</code>. Default 0.0.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>phi_prior</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;l2_log&#39;, &#39;gamma&#39;, &#39;none&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Regularizer on the concentration: <code>"l2_log"</code> (default; see <code>lambda_prior</code>), <code>"gamma"</code> (Gamma prior on
+phi with <code>phi_prior_shape</code> and <code>phi_prior_rate</code>, scaled by 1 / number of cells) or <code>"none"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>phi_prior_shape</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shape and rate of the Gamma prior. Defaults 2.0 and 0.1 (mean 20).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>phi_prior_rate</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Shape and rate of the Gamma prior. Defaults 2.0 and 0.1 (mean 20).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>phi_init</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;log100&#39;, &#39;prior&#39;, &#39;constant&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting concentration: <code>"constant"</code> (default; every ATSE starts at the same value, phi about 4.6),
+<code>"log100"</code> (the same start plus a random draw per ATSE) or <code>"prior"</code> (a draw from the Gamma prior).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>psi_prior_pseudocount</code></td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Strength of the pseudo-count term on the decoded junction usage: adds
+<code>-psi_prior_pseudocount * sum_j pop_psi_j * log(psi_j)</code> per cell, i.e. that many virtual reads per ATSE
+distributed as the read-weighted population usage of the training data. Dirichlet-multinomial only.
+Default 0.0 (off).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>splicing_encoder_architecture</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;partial&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Splicing encoder: <code>"partial"</code> (default; reads only the observed junctions of each cell) or <code>"vanilla"</code>
+(scvi-tools <code>Encoder</code> on the full junction vector).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>splicing_decoder_architecture</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;linear&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Splicing decoder: <code>"vanilla"</code> (default; nonlinear) or <code>"linear"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>expression_architecture</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;linear&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Expression decoder: <code>"vanilla"</code> (default; nonlinear) or <code>"linear"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>encoder_hidden_dim</code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Width of the network after pooling in the partial splicing encoder. Default 128.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>code_dim</code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Size of the learned embedding of each junction in the partial splicing encoder. Default 64.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>h_hidden_dim</code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Width of the network that combines each observed junction's input with its embedding. Default 128.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>pool_mode</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;mean&#39;, &#39;sum&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pooling over the observed junctions of a cell: <code>"mean"</code> (default) or <code>"sum"</code>.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>psi_input</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;raw&#39;, &#39;deviation&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Input of the partial splicing encoder: <code>"deviation"</code> (default; each observed junction's usage minus its
+read-weighted population usage, pooled with a fixed divisor so the pooled code does not carry the number of
+observed junctions; needs <code>pool_mode="mean"</code>) or <code>"raw"</code> (the observed usage itself).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>decoder_intercept_init</code></td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;default&#39;, &#39;population&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Starting bias of the splicing decoder: <code>"population"</code> (default; set so that the decoder starts at the
+read-weighted population usage of the training data) or <code>"default"</code> (PyTorch's initialization).</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>decoder_depth_covariates</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default), both decoders (never the encoders) receive three standardized depth inputs per cell: log1p
+detected genes, log1p observed junctions and log1p library size. Vanilla splicing decoder only.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>max_nobs</code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Largest number of observed (cell, junction) pairs processed in one chunk by the partial encoder; a negative
+value (default -1) processes a batch in one chunk.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>n_decoder_covariates</code></td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of zero-initialized covariate inputs into the first hidden layer of both decoders. Default 0. Normally
+left at 0 and added by :meth:<code>finetune_decoders</code> (one input, technology); a saved fine-tuned model stores it,
+so :meth:<code>load</code> rebuilds the inputs. Vanilla decoders only.</p>
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td><code>initialize_embeddings_from_pca</code></td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True (default) and the splicing encoder is <code>"partial"</code>, the junction embeddings start from a truncated SVD
+of the junction usage matrix.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>   <span class="c1"># the paper&#39;s layer names; add batch_key if there is one</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">latent</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">()</span>
+</code></pre></div>
 
 
 
@@ -2088,8 +2568,89 @@ table via PCA on junction ratios.</p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="splicevi.SPLICEVI.add_decoder_covariates" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">add_decoder_covariates</span><span class="p">(</span><span class="n">n_covariates</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Add zero-initialized covariate inputs to the first hidden layer of both decoders.</p>
+<p>The model's output is unchanged until the covariate weights are trained (:meth:<code>finetune_decoders</code>). Recorded in
+the model's init parameters (<code>n_decoder_covariates</code>), so :meth:<code>save</code> / :meth:<code>load</code> keep the inputs.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_covariates</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of covariate inputs (1 for technology: reference 0, query 1).</p>
+              </div>
+            </td>
+            <td>
+                  <code>1</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.decoder_covariate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">decoder_covariate</span><span class="p">(</span><span class="n">value</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Context manager: decode with this decoder covariate value inside the block, then restore the previous one.</p>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <blockquote>
+<blockquote>
+<blockquote>
+<p>with model.decoder_covariate(0.0):   # decode the query cells as if they were reference data
+...     psi_as_reference = model.get_normalized_splicing_DM(adata=query_mdata)</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</details>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="splicevi.SPLICEVI.differential_expression" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">differential_expression</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">all_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_correction</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">batchid1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batchid2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">differential_expression</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">all_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_correction</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">batchid1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batchid2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">norm_expression_function</span><span class="o">=</span><span class="s1">&#39;zinb_expected&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
@@ -2111,6 +2672,312 @@ table via PCA on junction ratios.</p>
         </tr>
       </thead>
       <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>adata</code>
+            </td>
+            <td>
+                  <code><span title="anndata.AnnData">AnnData</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>AnnData object with equivalent structure to initial AnnData.
+If None, defaults to the AnnData object used to initialize the model.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>groupby</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The key of the observations grouping to consider.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>group1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subset of groups, e.g. [<code>'g1'</code>, <code>'g2'</code>, <code>'g3'</code>], to which comparison
+shall be restricted, or all groups in <code>groupby</code> (default).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>group2</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>None</code>, compare each group in <code>group1</code> to the union of the rest of the groups
+in <code>groupby</code>. If a group identifier, compare with respect to this group.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="int">int</span>] | <span title="collections.abc.Sequence">Sequence</span>[<span title="bool">bool</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>idx1</code> and <code>idx2</code> can be used as an alternative to the AnnData keys.
+Custom identifier for <code>group1</code> that can be of three sorts: (1) a boolean mask,
+(2) indices, or (3) a string. If it is a string, then it will query indices that
+verifies conditions on <code>adata.obs</code>, as described in :meth:<code>pandas.DataFrame.query</code>
+If <code>idx1</code> is not <code>None</code>, this option overrides <code>group1</code>
+and <code>group2</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx2</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="int">int</span>] | <span title="collections.abc.Sequence">Sequence</span>[<span title="bool">bool</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Custom identifier for <code>group2</code> that has the same
+properties as <code>idx1</code>.
+By default, includes all cells not specified in
+<code>idx1</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mode</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;change&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Method for differential expression. See user guide for full explanation.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;change&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>delta</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>specific case of region inducing differential expression.
+In this case, we suppose that :math:<code>R \setminus [-\delta, \delta]</code> does not induce
+differential expression (change model default case).</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.25</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batch_size</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minibatch size for data loading into model. Defaults to <code>scvi.settings.batch_size</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>all_stats</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Concatenate count statistics (e.g., mean expression group 1) to DE results.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batch_correction</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to correct for batch effects in DE inference.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batchid1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subset of categories from <code>batch_key</code> registered in <code>setup_anndata</code>,
+e.g. [<code>'batch1'</code>, <code>'batch2'</code>, <code>'batch3'</code>], for <code>group1</code>. Only used if <code>batch_correction</code> is
+<code>True</code>, and by default all categories are used.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batchid2</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Same as <code>batchid1</code> for group2. <code>batchid2</code> must either have null intersection with <code>batchid1</code>,
+or be exactly equal to <code>batchid1</code>. When the two sets are exactly equal, cells are compared by
+decoding on the same batch. When sets have null intersection, cells from <code>group1</code> and <code>group2</code>
+are decoded on each group in <code>group1</code> and <code>group2</code>, respectively.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fdr_target</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tag features as DE based on posterior expected false discovery rate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.05</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>silent</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, disables the progress bar. Default: False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>norm_expression_function</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;decoder&#39;, &#39;zinb_expected&#39;, &#39;zinb_posterior_mean&#39;, &#39;zinb_posterior_sample&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which expression estimate the two groups are compared on:</p>
+<ul>
+<li><code>"zinb_expected"</code> (default): the ZINB expected expression <code>(1 - dropout) * px_scale</code>. With ZINB the
+  dropout probability can absorb part of a difference between groups, which <code>px_scale</code> alone then
+  misses (on Allen Brain data downsampled to EasySci depth this roughly doubled the fold changes towards
+  the full-depth ones). For a model with <code>gene_likelihood="nb"</code> or <code>"poisson"</code> there is no dropout,
+  so this is the decoder output.</li>
+<li><code>"decoder"</code>: the decoder output <code>px_scale</code> (:meth:<code>get_normalized_expression</code>), as in scVI and
+  MultiVI.</li>
+<li><code>"zinb_posterior_mean"</code>: the ZINB posterior mean given each cell's observed counts
+  (:meth:<code>get_normalized_expression_ZINB</code>), which weighs in the raw data.</li>
+<li><code>"zinb_posterior_sample"</code>: one draw from that posterior per Monte Carlo sample, so per-cell count
+  uncertainty enters <code>proba_de</code>.</li>
+</ul>
+<p>The two posterior options need <code>gene_likelihood="zinb"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;zinb_expected&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If given, <code>scvi.settings.seed</code> is set to this value before sampling, so that repeated calls give the
+same table. This seeds PyTorch, NumPy and Python's <code>random</code> for the whole session. Default <code>None</code>
+leaves the random state as it is.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
           <tr class="doc-section-item">
             <td>
                 <code>**kwargs</code>
@@ -2141,7 +3008,27 @@ table via PCA on junction ratios.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code>A pandas DataFrame with differential expression results.</code>
+                  <code>A pandas DataFrame with differential expression results, sorted by ``proba_de`` (highest first). Features with</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>equal ``proba_de`` keep their order in the data, and the FDR calls use the same order, so the table is the same</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>on every machine.</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2161,7 +3048,7 @@ table via PCA on junction ratios.</p>
 
 
 <h4 id="splicevi.SPLICEVI.differential_splicing" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">differential_splicing</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">all_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_correction</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">batchid1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batchid2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">norm_splicing_function</span><span class="o">=</span><span class="s1">&#39;dm_posterior_mean&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">differential_splicing</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">group2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;change&#39;</span><span class="p">,</span> <span class="n">delta</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">all_stats</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_correction</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">batchid1</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batchid2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">norm_splicing_function</span><span class="o">=</span><span class="s1">&#39;dm_posterior_sample&#39;</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
@@ -2186,6 +3073,309 @@ from the model's splicing decoder.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
+                <code>adata</code>
+            </td>
+            <td>
+                  <code><span title="anndata.AnnData">AnnData</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>AnnData object with equivalent structure to initial AnnData.
+If None, defaults to the AnnData object used to initialize the model.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>groupby</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The key of the observations grouping to consider.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>group1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subset of groups, e.g. [<code>'g1'</code>, <code>'g2'</code>, <code>'g3'</code>], to which comparison
+shall be restricted, or all groups in <code>groupby</code> (default).</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>group2</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If <code>None</code>, compare each group in <code>group1</code> to the union of the rest of the groups
+in <code>groupby</code>. If a group identifier, compare with respect to this group.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="int">int</span>] | <span title="collections.abc.Sequence">Sequence</span>[<span title="bool">bool</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>idx1</code> and <code>idx2</code> can be used as an alternative to the AnnData keys.
+Custom identifier for <code>group1</code> that can be of three sorts: (1) a boolean mask,
+(2) indices, or (3) a string. If it is a string, then it will query indices that
+verifies conditions on <code>adata.obs</code>, as described in :meth:<code>pandas.DataFrame.query</code>
+If <code>idx1</code> is not <code>None</code>, this option overrides <code>group1</code>
+and <code>group2</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx2</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Sequence">Sequence</span>[<span title="int">int</span>] | <span title="collections.abc.Sequence">Sequence</span>[<span title="bool">bool</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Custom identifier for <code>group2</code> that has the same
+properties as <code>idx1</code>.
+By default, includes all cells not specified in
+<code>idx1</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mode</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;vanilla&#39;, &#39;change&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Method for differential expression. See user guide for full explanation.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;change&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>delta</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>specific case of region inducing differential expression.
+In this case, we suppose that :math:<code>R \setminus [-\delta, \delta]</code> does not induce
+differential expression (change model default case).</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batch_size</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minibatch size for data loading into model. Defaults to <code>scvi.settings.batch_size</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>all_stats</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Concatenate count statistics (e.g., mean expression group 1) to DE results.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batch_correction</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Whether to correct for batch effects in DE inference.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batchid1</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Subset of categories from <code>batch_key</code> registered in <code>setup_anndata</code>,
+e.g. [<code>'batch1'</code>, <code>'batch2'</code>, <code>'batch3'</code>], for <code>group1</code>. Only used if <code>batch_correction</code> is
+<code>True</code>, and by default all categories are used.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batchid2</code>
+            </td>
+            <td>
+                  <code><span title="collections.abc.Iterable">Iterable</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Same as <code>batchid1</code> for group2. <code>batchid2</code> must either have null intersection with <code>batchid1</code>,
+or be exactly equal to <code>batchid1</code>. When the two sets are exactly equal, cells are compared by
+decoding on the same batch. When sets have null intersection, cells from <code>group1</code> and <code>group2</code>
+are decoded on each group in <code>group1</code> and <code>group2</code>, respectively.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fdr_target</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Tag features as DE based on posterior expected false discovery rate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.05</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>silent</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, disables the progress bar. Default: False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>norm_splicing_function</code>
+            </td>
+            <td>
+                  <code><span title="typing.Literal">Literal</span>[&#39;decoder&#39;, &#39;dm_posterior_mean&#39;, &#39;dm_posterior_sample&#39;]</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which junction-usage estimate the two groups are compared on:</p>
+<ul>
+<li><code>"dm_posterior_sample"</code> (default): one draw per Monte Carlo sample from each cell's Beta posterior of
+  junction usage, which combines the decoded usage (weighted by the ATSE's concentration) with the cell's
+  own reads (:meth:<code>get_normalized_splicing_DM</code> with <code>sample=True</code>), so per-cell read uncertainty enters
+  <code>proba_ds</code>.</li>
+<li><code>"dm_posterior_mean"</code>: the mean of that posterior (<code>sample=False</code>).</li>
+<li><code>"decoder"</code>: the decoder's junction usage alone (:meth:<code>get_normalized_splicing</code>).</li>
+</ul>
+<p><code>delta</code> (default 0.1) is a threshold on the absolute difference in junction usage. The paper also keeps
+only junctions observed in at least 3 cells of each group; apply that with
+:func:<code>~splicevi.filter_read_support</code> on the returned table (it does not change the FDR calls).</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;dm_posterior_sample&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If given, <code>scvi.settings.seed</code> is set to this value before sampling, so that repeated calls give the
+same table. This seeds PyTorch, NumPy and Python's <code>random</code> for the whole session. Default <code>None</code>
+leaves the random state as it is.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>**kwargs</code>
             </td>
             <td>
@@ -2214,7 +3404,27 @@ from the model's splicing decoder.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                  <code>A pandas DataFrame with differential splicing results.</code>
+                  <code>A pandas DataFrame with differential splicing results, one row per junction in the order of the data. Among</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>junctions with equal ``proba_ds`` at the FDR cutoff, the ones earlier in the data are called, so the calls are</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>the same on every machine.</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -2224,6 +3434,367 @@ from the model's splicing decoder.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.finetune_decoders" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">finetune_decoders</span><span class="p">(</span><span class="n">query_mdata</span><span class="p">,</span> <span class="n">reference_mdata</span><span class="p">,</span> <span class="n">n_query_per_step</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">n_reference_per_step</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">max_epochs</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">early_stopping_patience</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">validation_fraction</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">20261137</span><span class="p">,</span> <span class="n">set_torch_seed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">max_minutes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">checkpoint_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fix_depth_inputs</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">query_covariate_value</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">reference_covariate_value</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Adapt a trained model to a new atlas by fine-tuning only its decoders, plus one technology input.</p>
+<p>Use when this model was trained on a reference atlas (e.g. Allen Brain, deep Smart-seq) and you want its
+expression and splicing estimates for a new, sparser atlas of the same tissue (e.g. EasySci, single-nucleus 3')
+without retraining from scratch. The encoders are not changed, so query cells are placed in the reference
+latent space; the decoders learn the query data's expression and splicing levels. Defaults are the same as what's used in 
+the paper's EasySci model.</p>
+<p>What happens:</p>
+<ol>
+<li>One zero-initialized decoder covariate input is added to the first hidden layer of both decoders
+   (technology: <code>reference_covariate_value</code> for reference cells, <code>query_covariate_value</code> for query cells).
+   At zero weights the model is the reference model.</li>
+<li>Everything is frozen except the two decoders and the covariate weights. Kept from the reference model: the
+   encoders, junction embeddings and latent mixing, the deviation input's population PSI and pool divisor,
+   the per-ATSE splicing concentrations and the gene dispersions (re-learning the last two on the query data
+   predicted held-out query reads worse in the paper's tests, so it is not offered).</li>
+<li>With <code>fix_depth_inputs</code> (models with <code>decoder_depth_covariates</code>), the decoders' depth inputs are fixed
+   at the reference training mean for every cell, since the reference depth statistics do not describe the
+   query data. The cross-modality gate is set open, as at the end of training.</li>
+<li>Each step uses <code>n_query_per_step</code> query cells and <code>n_reference_per_step</code> reference cells (the reference
+   "replay" keeps the decoders fitting the reference); loss = query loss + reference loss; Adam at <code>lr</code>.</li>
+<li>A random <code>validation_fraction</code> of the query cells is held out for early stopping (patience
+   <code>early_stopping_patience</code> epochs, at most <code>max_epochs</code>, optional wall-clock limit <code>max_minutes</code>).</li>
+<li>The best state is restored and the model is left decoding as query data (decoder covariate =
+   <code>query_covariate_value</code>), ready for :meth:<code>differential_splicing</code> etc. on the query cells.</li>
+</ol>
+<p>Calling it again continues from the current weights with a fresh optimizer. Training a fine-tuned model with
+:meth:<code>train</code> is not supported: every cell would get <code>decoder_covariate_value</code>, so the covariate weights
+would act as a plain bias.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_mdata</code>
+            </td>
+            <td>
+                  <code><span title="mudata.MuData">MuData</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The new atlas (e.g. EasySci training metacells) in this model's gene and junction space (same genes, same
+junction ids and ATSE assignment), with the layers this model was trained on: expression counts
+(<code>length_norm</code>; raw counts for UMI data), library size (<code>X_library_size</code>), junction and ATSE counts,
+<code>junc_ratio</code> and <code>psi_mask</code>. If not yet set up, it is set up with this model's setup arguments (as
+:meth:<code>load</code> does). The paper's reproduction code (SpliceVI-utils) shows how these files were built from the
+model-ready data.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference_mdata</code>
+            </td>
+            <td>
+                  <code><span title="mudata.MuData">MuData</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A replay set of the data this model was trained on (e.g. 20,000 Allen training cells), same layers.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_query_per_step</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Query and reference cells per optimization step (paper: 32 and 128).</p>
+              </div>
+            </td>
+            <td>
+                  <code>32</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_reference_per_step</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Query and reference cells per optimization step (paper: 32 and 128).</p>
+              </div>
+            </td>
+            <td>
+                  <code>32</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lr</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Adam learning rate.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.0001</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_epochs</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Epochs over the query training cells; stop when the validation loss has not improved for this many epochs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>early_stopping_patience</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Epochs over the query training cells; stop when the validation loss has not improved for this many epochs.</p>
+              </div>
+            </td>
+            <td>
+                  <code>300</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>validation_fraction</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Share of query cells held out (never trained on) to decide when to stop.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>seed</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed of the validation split, the minibatch order and the reference cells per step (numpy), and, with
+<code>set_torch_seed</code>, of torch's global random state (latent sampling and decoder dropout during
+fine-tuning). GPU arithmetic is not bit-deterministic, so reruns agree closely but not exactly.</p>
+              </div>
+            </td>
+            <td>
+                  <code>20261137</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>set_torch_seed</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Call <code>torch.manual_seed(seed)</code> (changes torch's global random state). False when the caller seeded torch
+already, e.g. before loading the model, as the paper's fine-tuning run did.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>max_minutes</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Optional wall-clock limit (the best state so far is kept). Keep it below a job's time limit.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>checkpoint_dir</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If set, the best module state is also written to <code>&lt;checkpoint_dir&gt;/module_state_best.pt</code> at every
+improvement, so a run killed from outside (e.g. a job time limit) keeps its best state.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>fix_depth_inputs</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Fix the decoders' depth inputs at the reference training mean (models with decoder depth covariates).</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>query_covariate_value</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Values of the technology input for query and reference cells.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>reference_covariate_value</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Values of the technology input for query and reference cells.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                  <code>Training history: one row per epoch (``epoch``, ``train_loss``, ``validation_loss``; epoch -1 = before</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>training). Also stored as ``finetune_history_``, with the settings and outcome in ``finetune_params_``; both</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                  <code>are saved by :meth:`save`.</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">reference_model_dir</span><span class="p">,</span> <span class="n">adata</span><span class="o">=</span><span class="n">query_mdata</span><span class="p">)</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">to_device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">history</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">finetune_decoders</span><span class="p">(</span><span class="n">query_mdata</span><span class="p">,</span> <span class="n">reference_mdata</span><span class="p">)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">out_dir</span><span class="p">)</span>                         <span class="c1"># SPLICEVI.load(out_dir, adata=query_mdata) decodes as query</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">ds</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">differential_splicing</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="n">query_mdata</span><span class="p">,</span> <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;broad_cell_type&quot;</span><span class="p">,</span> <span class="n">group1</span><span class="o">=</span><span class="s2">&quot;A&quot;</span><span class="p">,</span> <span class="n">group2</span><span class="o">=</span><span class="s2">&quot;B&quot;</span><span class="p">)</span>
+</code></pre></div>
 
 
     </div>
@@ -2478,7 +4049,7 @@ from the model's splicing decoder.</p>
 
 
 <h4 id="splicevi.SPLICEVI.get_normalized_expression" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">get_normalized_expression</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_samples_overall</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform_batch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gene_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_numpy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">get_normalized_expression</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_samples_overall</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform_batch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gene_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_numpy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">expected</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 </h4>
 
@@ -2668,6 +4239,40 @@ of interest.</p>
                   <code>False</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>silent</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, disables the progress bar.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>expected</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, return the ZINB expected expression :math:<code>(1 - \pi) \rho_n</code>, with :math:<code>\pi</code> the decoder's
+dropout probability, instead of :math:<code>\rho_n</code>. Only for <code>gene_likelihood="zinb"</code>. Used by DE with
+<code>norm_expression_function="zinb_expected"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -2713,6 +4318,47 @@ of interest.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.get_normalized_expression_ZINB" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_normalized_expression_ZINB</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_samples_overall</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform_batch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">gene_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_numpy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Returns <strong>ZINB posterior-mean</strong> normalized expression (the expression analogue of
+:meth:<code>get_normalized_splicing_DM</code>). Only valid for <code>gene_likelihood="zinb"</code>.</p>
+<p>The ZINB is a Gamma-Poisson mixed with a point mass at zero. With decoder mean :math:<code>\mu</code>
+(<code>px_rate</code>), inverse dispersion :math:<code>\theta</code> (<code>px_r</code>) and dropout probability
+:math:<code>\pi = \sigma(\text{px\_dropout})</code>, the posterior mean of the underlying rate given the
+observed count :math:<code>y</code> is</p>
+<ul>
+<li>:math:<code>y &gt; 0</code>: :math:<code>E[\lambda \mid y] = \mu (\theta + y) / (\theta + \mu)</code>, i.e. a weighted average
+  :math:<code>\tfrac{\theta}{\theta+\mu}\mu + \tfrac{\mu}{\theta+\mu} y</code> of the decoder and the data;</li>
+<li>:math:<code>y = 0</code>: with :math:<code>w = P(\text{dropout} \mid y=0) = \pi / (\pi + (1-\pi)(\theta/(\theta+\mu))^\theta)</code>,
+  :math:<code>E[\lambda \mid 0] = w \mu + (1-w)\, \theta\mu / (\theta+\mu)</code> (a dropout zero carries no
+  information; a sampling zero pulls the estimate down).</li>
+</ul>
+<p>The result is divided by the cell's library factor (<code>px_rate / px_scale</code>), so it is on the same
+scale as :meth:<code>get_normalized_expression</code> (<code>px_scale</code>) and can replace it in DE. Parameters
+and return shape are the same as :meth:<code>get_normalized_expression</code>, plus:</p>
+<p>sample
+    If True, return one random draw from the posterior instead of its mean: for y &gt; 0,
+    :math:<code>\lambda \sim \mathrm{Gamma}(\theta + y,\ \theta/\mu + 1)</code>; for y = 0, with probability w the prior
+    :math:<code>\mathrm{Gamma}(\theta, \theta/\mu)</code> (dropout zero) and otherwise :math:<code>\mathrm{Gamma}(\theta, \theta/\mu + 1)</code>
+    (Gamma shape / rate). Used by DE with <code>norm_expression_function="zinb_posterior_sample"</code>, so each Monte
+    Carlo draw carries the uncertainty of each cell's expression given its counts.
+return_counts
+    If True, do not divide by the library factor (values on the count scale, e.g. for pseudobulk sums).</p>
 
 
     </div>
@@ -2971,7 +4617,7 @@ the result is averaged over draws.</p>
 
 
 <h4 id="splicevi.SPLICEVI.get_normalized_splicing_DM" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">get_normalized_splicing_DM</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_samples_overall</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform_batch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">junction_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_numpy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">get_normalized_splicing_DM</span><span class="p">(</span><span class="n">adata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_samples_overall</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform_batch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">junction_list</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">return_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">return_numpy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">silent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">sample</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 </h4>
 
@@ -3183,6 +4829,26 @@ averaged over samples.</p>
                   <code>True</code>
             </td>
           </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>sample</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, return one random draw from the per-junction posterior
+:math:<code>\psi_j \sim \mathrm{Beta}(c p_j + y_j,\ c (1 - p_j) + n - y_j)</code> (the Beta marginal of the
+Dirichlet posterior, whose mean is :math:<code>\psi^\*</code>) instead of its mean. Used by DS with
+<code>norm_splicing_function="dm_posterior_sample"</code>: junctions with few reads get wide draws, so they are not
+called on the decoder prediction alone.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
       </tbody>
     </table>
 
@@ -3217,11 +4883,185 @@ averaged over samples.</p>
 <div class="doc doc-object doc-function">
 
 
-<h4 id="splicevi.SPLICEVI.setup_anndata" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">setup_anndata</span><span class="p">(</span><span class="n">adata</span><span class="p">,</span> <span class="n">layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">junc_ratio</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cell_by_junction_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cell_by_cluster_matrix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">psi_mask_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batch_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size_factor_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">categorical_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">continuous_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+<h4 id="splicevi.SPLICEVI.init_decoder_intercept_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_decoder_intercept_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Start the splicing decoder's per-junction bias at log(population PSI), clipped to [1e-4, 1].</p>
+<p>With the hidden contribution at zero, the decoder then reproduces the population PSI: <code>generative()</code> maps
+sigmoid(bias) -&gt; clamp -&gt; logit -&gt; softmax within the ATSE, which is the softmax of the bias over the ATSE.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_depth_covariate_stats_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_depth_covariate_stats_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Mean and standard deviation over the training cells of [log1p detected genes, log1p observed junctions,
+log1p library size], stored as buffers so the decoders' depth covariates are standardized with training
+constants (same definitions as in <code>SPLICEVAE.inference</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_feature_embedding_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_feature_embedding_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Start the partial encoder's junction embeddings from a truncated SVD of the junction-usage matrix.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_junc2atse" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_junc2atse</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Build the junction-to-ATSE matrix from <code>var["event_id"]</code> of the splicing modality (once).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_pool_divisor_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_pool_divisor_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Set the partial encoder's fixed pooling divisor (<code>psi_input="deviation"</code>): the median number of observed
+junctions per training cell.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_pop_psi_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_pop_psi_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Fill the partial encoder's <code>pop_psi</code> buffer with the population PSI of the training data
+(<code>psi_input="deviation"</code>).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.init_psi_prior_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_psi_prior_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Population PSI for the pseudo-count prior (psi_prior_pseudocount &gt; 0): read-weighted population PSI per
+junction; junctions of ATSEs with no reads in the training data get 1 / (junctions in the ATSE), so the prior
+is a distribution within every ATSE.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.make_junc2atse" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">make_junc2atse</span><span class="p">(</span><span class="n">atse_labels</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Sparse (junctions x ATSEs) matrix with a 1 where a junction belongs to an ATSE.</p>
+<p>With <code>dm_concentration="atse"</code> this also replaces the concentration parameter by one value per ATSE.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.population_psi_from_adata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">population_psi_from_adata</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Read-weighted population PSI per junction from the registered count layers of the training data.</p>
+<p>Sum over cells of the junction counts divided by the sum over cells of the ATSE totals (the ATSE count layer
+repeats the ATSE total on every junction of the ATSE, so its column sum is the ATSE's read total); 0 for
+junctions without reads.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.preset" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">preset</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">atlas</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">joint</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
-      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+      <small class="doc doc-label doc-label-staticmethod"><code>staticmethod</code></small>
   </span>
 
 </h4>
@@ -3229,7 +5069,29 @@ averaged over samples.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Set up an AnnData object for SPLICEVI.</p>
+        <p>Settings of the paper's models (the class defaults equal <code>preset("paper")</code>); see
+:func:<code>splicevi.presets.preset</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.set_decoder_covariate" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">set_decoder_covariate</span><span class="p">(</span><span class="n">value</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Value of the decoder covariate input(s) used for every cell from now on (saved with the model).</p>
+<p>After :meth:<code>finetune_decoders</code> the model decodes as query data (<code>value = 1.0</code>); set <code>0.0</code> to decode as the
+reference data. Affects every decoder output: normalized expression / splicing, differential expression and
+differential splicing.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3245,77 +5107,45 @@ averaged over samples.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>junc_ratio</code>
+                <code>value</code>
             </td>
             <td>
-                  <code><span title="str">str</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Key in <code>adata.layers</code> for junction ratio values.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>cell_by_junction_matrix</code>
-            </td>
-            <td>
-                  <code><span title="str">str</span> | None</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in <code>adata.layers</code> for the cell-by-junction matrix.</p>
+                <p>A number (all covariates) or one value per covariate.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>cell_by_cluster_matrix</code>
-            </td>
-            <td>
-                  <code><span title="str">str</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Key in <code>adata.layers</code> for the cell-by-cluster splicing matrix.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>psi_mask_layer</code>
-            </td>
-            <td>
-                  <code><span title="str">str</span> | None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Layer with binary mask (1=observed, 0=missing) per junction.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
+                <em>required</em>
             </td>
           </tr>
       </tbody>
     </table>
 
 
-<details class="note" open>
-  <summary>Notes</summary>
-  <p>Use this method if your splicing data is stored in an AnnData object where gene expression and
-splicing features are concatenated.</p>
-</details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.SPLICEVI.setup_anndata" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">setup_anndata</span><span class="p">(</span><span class="n">adata</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
+  </span>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Not supported: SPLICEVI needs a MuData object with an <code>"rna"</code> and a <code>"splicing"</code> modality.</p>
+<p>Use :meth:<code>setup_mudata</code>. (scvi-tools requires every model class to define this method.)</p>
+
 
     </div>
 
@@ -3325,7 +5155,7 @@ splicing features are concatenated.</p>
 
 
 <h4 id="splicevi.SPLICEVI.setup_mudata" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">rna_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">junc_ratio_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">atse_counts_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">junc_counts_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">psi_mask_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">batch_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size_factor_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">categorical_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">continuous_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modalities</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">rna_layer</span><span class="o">=</span><span class="s1">&#39;length_norm&#39;</span><span class="p">,</span> <span class="n">junc_ratio_layer</span><span class="o">=</span><span class="s1">&#39;junc_ratio&#39;</span><span class="p">,</span> <span class="n">atse_counts_layer</span><span class="o">=</span><span class="s1">&#39;cell_by_cluster_matrix&#39;</span><span class="p">,</span> <span class="n">junc_counts_layer</span><span class="o">=</span><span class="s1">&#39;cell_by_junction_matrix&#39;</span><span class="p">,</span> <span class="n">psi_mask_layer</span><span class="o">=</span><span class="s1">&#39;psi_mask&#39;</span><span class="p">,</span> <span class="n">batch_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size_factor_key</span><span class="o">=</span><span class="s1">&#39;X_library_size&#39;</span><span class="p">,</span> <span class="n">categorical_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">continuous_covariate_keys</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">idx_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modalities</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
   <span class="doc doc-labels">
       <small class="doc doc-label doc-label-classmethod"><code>classmethod</code></small>
@@ -3337,6 +5167,8 @@ splicing features are concatenated.</p>
     <div class="doc doc-contents ">
 
         <p>Set up a MuData object for SPLICEVI.</p>
+<p>The defaults are the layer and modality names of the paper's MuData files, so a file in that layout needs only
+<code>SPLICEVI.setup_mudata(mdata)</code> (plus <code>batch_key</code> if there is one).</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3352,6 +5184,22 @@ splicing features are concatenated.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
+                <code>mdata</code>
+            </td>
+            <td>
+                  <code><span title="mudata.MuData">MuData</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>MuData object. Rows represent cells, columns represent features.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>rna_layer</code>
             </td>
             <td>
@@ -3359,12 +5207,12 @@ splicing features are concatenated.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in the RNA AnnData for gene expression counts.
-If <code>None</code>, the primary data (<code>.X</code>) of that AnnData is used.</p>
+                <p>Layer of the RNA modality with the gene expression counts. Default <code>"length_norm"</code>.
+If <code>None</code>, the primary data (<code>.X</code>) of that modality is used.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code>&#39;length_norm&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3376,12 +5224,12 @@ If <code>None</code>, the primary data (<code>.X</code>) of that AnnData is used
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in the splicing AnnData for junction ratio values.
-If <code>None</code>, the primary data (<code>.X</code>) of that AnnData is used.</p>
+                <p>Layer of the splicing modality with the junction usage (PSI) per cell and junction. Default
+<code>"junc_ratio"</code>. If <code>None</code>, the primary data (<code>.X</code>) of that modality is used.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code>&#39;junc_ratio&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3393,12 +5241,12 @@ If <code>None</code>, the primary data (<code>.X</code>) of that AnnData is used
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in the splicing AnnData for total event counts.
-If <code>None</code>, defaults to <code>"cell_by_cluster_matrix"</code>.</p>
+                <p>Layer of the splicing modality with the total reads of each junction's ATSE (repeated for every junction of
+the ATSE). Default <code>"cell_by_cluster_matrix"</code>.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code>&#39;cell_by_cluster_matrix&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3410,12 +5258,11 @@ If <code>None</code>, defaults to <code>"cell_by_cluster_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in the splicing AnnData for observed junction counts.
-If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
+                <p>Layer of the splicing modality with the reads of each junction. Default <code>"cell_by_junction_matrix"</code>.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code>&#39;cell_by_junction_matrix&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3427,7 +5274,26 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Layer with binary mask (1=observed, 0=missing) per junction.</p>
+                <p>Layer of the splicing modality with the observation mask (1 = observed, 0 = missing) per cell and junction.
+Default <code>"psi_mask"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;psi_mask&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>batch_key</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>key in <code>adata.obs</code> for batch information. Categories will automatically be converted into
+integer categories and saved to <code>adata.obs['_scvi_batch']</code>. If <code>None</code>, assigns the same batch
+to all the data.</p>
               </div>
             </td>
             <td>
@@ -3443,7 +5309,80 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Key in <code>mdata.obsm</code> for size factors.</p>
+                <p>Key in <code>mdata.obsm</code> for the library size factors. Default <code>"X_library_size"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#39;X_library_size&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>categorical_covariate_keys</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>keys in <code>adata.obs</code> that correspond to categorical data.
+These covariates can be added in addition to the batch covariate and are also treated as
+nuisance factors (i.e., the model tries to minimize their effects on the latent space). Thus,
+these should not be used for biologically-relevant factors that you do <em>not</em> want to correct
+for.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>continuous_covariate_keys</code>
+            </td>
+            <td>
+                  <code><span title="list">list</span>[<span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>keys in <code>adata.obs</code> that correspond to continuous data.
+These covariates can be added in addition to the batch covariate and are also treated as
+nuisance factors (i.e., the model tries to minimize their effects on the latent space). Thus,
+these should not be used for biologically-relevant factors that you do <em>not</em> want to correct
+for.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>idx_layer</code>
+            </td>
+            <td>
+                  <code><span title="str">str</span> | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>if not <code>None</code>, A vector string represents the different modalities</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>modalities</code>
+            </td>
+            <td>
+                  <code><span title="dict">dict</span>[<span title="str">str</span>, <span title="str">str</span>] | None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Which modality holds each kind of data. Default <code>{"rna_layer": "rna", "junc_ratio_layer": "splicing"}</code>:
+expression in <code>mdata["rna"]</code> and every splicing layer in <code>mdata["splicing"]</code>.</p>
               </div>
             </td>
             <td>
@@ -3455,17 +5394,10 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
 
 
 <p><span class="doc-section-title">Examples:</span></p>
-    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mdata</span> <span class="o">=</span> <span class="n">mu</span><span class="o">.</span><span class="n">MuData</span><span class="p">({</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">... </span>   <span class="s2">&quot;rna&quot;</span><span class="p">:</span> <span class="n">ge_anndata</span><span class="o">.</span><span class="n">copy</span><span class="p">(),</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">... </span>   <span class="s2">&quot;splicing&quot;</span><span class="p">:</span> <span class="n">atse_anndata</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">... </span><span class="p">})</span>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">scvi</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="gp">... </span>    <span class="n">mdata</span><span class="p">,</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="gp">... </span>    <span class="n">modalities</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;rna_layer&quot;</span><span class="p">:</span> <span class="s2">&quot;rna&quot;</span><span class="p">,</span> <span class="s2">&quot;junc_ratio_layer&quot;</span><span class="p">:</span> <span class="s2">&quot;splicing&quot;</span><span class="p">},</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="gp">... </span>    <span class="n">rna_layer</span><span class="o">=</span><span class="s2">&quot;raw_counts&quot;</span><span class="p">,</span>            <span class="c1"># gene expression data is in the GE AnnData&#39;s &quot;raw_counts&quot; layer</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="gp">... </span>    <span class="n">junc_ratio_layer</span><span class="o">=</span><span class="s2">&quot;junc_ratio&quot;</span><span class="p">,</span>     <span class="c1"># splicing data is in the ATSE AnnData&#39;s &quot;junc_ratio&quot; layer</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="gp">... </span><span class="p">)</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">scvi</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">mdata</span> <span class="o">=</span> <span class="n">mu</span><span class="o">.</span><span class="n">MuData</span><span class="p">({</span><span class="s2">&quot;rna&quot;</span><span class="p">:</span> <span class="n">expression_anndata</span><span class="p">,</span> <span class="s2">&quot;splicing&quot;</span><span class="p">:</span> <span class="n">splicing_anndata</span><span class="p">})</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>                          <span class="c1"># the paper&#39;s layer names</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">rna_layer</span><span class="o">=</span><span class="s2">&quot;raw_counts&quot;</span><span class="p">)</span>  <span class="c1"># expression counts in another layer</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
 </code></pre></div>
 
 
@@ -3477,14 +5409,18 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
 
 
 <h4 id="splicevi.SPLICEVI.train" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">train</span><span class="p">(</span><span class="n">max_epochs</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">accelerator</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">devices</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">train_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">validation_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shuffle_set_split</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-08</span><span class="p">,</span> <span class="n">early_stopping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">early_stopping_patience</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">check_val_every_n_epoch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_steps_kl_warmup</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_epochs_kl_warmup</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">adversarial_mixing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">lr_scheduler_type</span><span class="o">=</span><span class="s1">&#39;plateau&#39;</span><span class="p">,</span> <span class="n">reduce_lr_on_plateau</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">lr_factor</span><span class="o">=</span><span class="mf">0.6</span><span class="p">,</span> <span class="n">lr_patience</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">lr_threshold</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lr_scheduler_metric</span><span class="o">=</span><span class="s1">&#39;elbo_validation&#39;</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">gradient_clipping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">gradient_clipping_max_norm</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">datasplitter_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plan_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">train</span><span class="p">(</span><span class="n">max_epochs</span><span class="o">=</span><span class="mi">300</span><span class="p">,</span> <span class="n">lr</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">accelerator</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">devices</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">train_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">validation_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shuffle_set_split</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span> <span class="n">weight_decay</span><span class="o">=</span><span class="mf">0.0001</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="mf">1e-08</span><span class="p">,</span> <span class="n">early_stopping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">early_stopping_patience</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">check_val_every_n_epoch</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_steps_kl_warmup</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">n_epochs_kl_warmup</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">adversarial_mixing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">lr_scheduler_type</span><span class="o">=</span><span class="s1">&#39;step&#39;</span><span class="p">,</span> <span class="n">reduce_lr_on_plateau</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">lr_factor</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">lr_patience</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">lr_threshold</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">lr_scheduler_metric</span><span class="o">=</span><span class="s1">&#39;elbo_validation&#39;</span><span class="p">,</span> <span class="n">step_size</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">gradient_clipping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">gradient_clipping_max_norm</span><span class="o">=</span><span class="mf">5.0</span><span class="p">,</span> <span class="n">disable_cross_gate</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">pin_memory</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">load_sparse_tensor</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">datasplitter_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">plan_kwargs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></code>
 
 </h4>
 
 
     <div class="doc doc-contents ">
 
-        <p>Trains the model using amortized variational inference on gene expression and splicing modalities.</p>
+        <p>Train the model with amortized variational inference on both modalities.</p>
+<p>The defaults are the paper's training settings: 300 epochs, batch size 256, AdamW with learning rate 1e-4 and
+weight decay 1e-4, KL warm-up over 200 epochs, early stopping on the validation reconstruction loss with
+patience 50, and gradient clipping at norm 5. The step scheduler with <code>step_size=400</code> never lowers the
+learning rate within 300 epochs, so the learning rate stays constant.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -3507,11 +5443,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of epochs to train over.</p>
+                <p>Number of epochs. Default 300.</p>
               </div>
             </td>
             <td>
-                  <code>500</code>
+                  <code>300</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3523,7 +5459,7 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Learning rate for optimization.</p>
+                <p>Learning rate. Default 1e-4.</p>
               </div>
             </td>
             <td>
@@ -3619,11 +5555,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Minibatch size for training.</p>
+                <p>Minibatch size. Default 256.</p>
               </div>
             </td>
             <td>
-                  <code>128</code>
+                  <code>256</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3635,11 +5571,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Optimizer hyperparameters.</p>
+                <p>AdamW weight decay (default 1e-4) and epsilon (default 1e-8).</p>
               </div>
             </td>
             <td>
-                  <code>0.001</code>
+                  <code>0.0001</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3651,11 +5587,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Optimizer hyperparameters.</p>
+                <p>AdamW weight decay (default 1e-4) and epsilon (default 1e-8).</p>
               </div>
             </td>
             <td>
-                  <code>0.001</code>
+                  <code>0.0001</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3667,7 +5603,7 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether to enable early stopping.</p>
+                <p>Whether to stop early on the validation reconstruction loss. Default True.</p>
               </div>
             </td>
             <td>
@@ -3683,7 +5619,7 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Number of epochs with no improvement before stopping.</p>
+                <p>Number of epochs with no improvement before stopping. Default 50.</p>
               </div>
             </td>
             <td>
@@ -3715,7 +5651,7 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>KL divergence warmup parameters (by steps or epochs).</p>
+                <p>KL warm-up length, in steps or in epochs (default 200 epochs).</p>
               </div>
             </td>
             <td>
@@ -3731,7 +5667,7 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>KL divergence warmup parameters (by steps or epochs).</p>
+                <p>KL warm-up length, in steps or in epochs (default 200 epochs).</p>
               </div>
             </td>
             <td>
@@ -3747,7 +5683,9 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Whether to include adversarial classifier during training.</p>
+                <p>Whether to train an adversarial batch classifier on the latent space. Default True; it is switched off
+automatically when the data has a single batch (no batch key), as for the paper's Allen models, and is on
+with a batch key, as for the paper's TMS models (batch key <code>mouse.id</code>).</p>
               </div>
             </td>
             <td>
@@ -3763,11 +5701,12 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Scheduler type in TrainingPlan: “plateau” (reduce-on-plateau) or “step” (fixed-step).</p>
+                <p>Learning-rate scheduler: <code>"step"</code> (default; multiply by <code>lr_factor</code> every <code>step_size</code> epochs) or
+<code>"plateau"</code> (reduce on plateau).</p>
               </div>
             </td>
             <td>
-                  <code>&#39;plateau&#39;</code>
+                  <code>&#39;step&#39;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3795,11 +5734,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Multiplicative factor for LR reduction (used for both plateau and step schedulers).</p>
+                <p>Factor by which the learning rate is multiplied at each reduction (both schedulers). Default 0.1.</p>
               </div>
             </td>
             <td>
-                  <code>0.6</code>
+                  <code>0.1</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3859,11 +5798,11 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Epoch interval between LR drops (step scheduler).</p>
+                <p>Epochs between learning-rate reductions (step scheduler). Default 400.</p>
               </div>
             </td>
             <td>
-                  <code>10</code>
+                  <code>400</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -3896,6 +5835,79 @@ If <code>None</code>, defaults to <code>"cell_by_junction_matrix"</code>.</p>
             </td>
             <td>
                   <code>5.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>disable_cross_gate</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, pin the cross gate open (1.0) for the whole run, including during KL warmup.
+For non-concatenate <code>modality_weights</code> this disables the random per-batch
+single-modality routing (SPLICEVAE.inference()'s warmup_only_splicing), so the joint
+posterior is the real mixed latent from the start -- ordinary KL warmup, no modality
+switching. For <code>modality_weights="concatenate"</code> it also disables the
+closed-during-warmup cross-term gating. Default False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>num_workers</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Data-loader worker processes for the training and validation loaders (kept alive across epochs). Batches
+are built in parallel with the GPU step instead of on the main process. Default 0 (main process).</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>pin_memory</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Page-locked host memory for batches, which makes the copy to the GPU faster. Default False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>load_sparse_tensor</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Send sparse layers to the GPU as sparse tensors and make them dense there (scvi-tools'
+<code>on_after_batch_transfer</code>), instead of building dense 79,768-wide matrices on the CPU for every batch.
+Registered splicing layers stored dense are converted to CSR in memory first (same values). The batches
+the model sees are identical. Default False.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
             </td>
           </tr>
           <tr class="doc-section-item">

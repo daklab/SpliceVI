@@ -53,6 +53,8 @@
     
       <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -69,7 +71,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -125,7 +127,21 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
     
   
 </form>
@@ -528,34 +544,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../models/eddisplice/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    EDDISPLICE
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -870,6 +858,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.add_decoder_covariates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_decoder_covariates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.decoder_first_layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decoder_first_layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.splicevae.SPLICEVAE.dirichlet_multinomial_likelihood" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -885,6 +895,17 @@
     <span class="md-ellipsis">
       
         generative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.get_phi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_phi
       
     </span>
   </a>
@@ -925,10 +946,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.init_log_phi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_log_phi
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.splicevae.SPLICEVAE.loss" class="md-nav__link">
     <span class="md-ellipsis">
       
         loss
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.phi_prior_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        phi_prior_loss
       
     </span>
   </a>
@@ -995,6 +1038,28 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.add_decoder_covariates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        add_decoder_covariates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.decoder_first_layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        decoder_first_layers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.splicevae.SPLICEVAE.dirichlet_multinomial_likelihood" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1010,6 +1075,17 @@
     <span class="md-ellipsis">
       
         generative
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.get_phi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        get_phi
       
     </span>
   </a>
@@ -1050,10 +1126,32 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.init_log_phi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        init_log_phi
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#splicevi.splicevae.SPLICEVAE.loss" class="md-nav__link">
     <span class="md-ellipsis">
       
         loss
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#splicevi.splicevae.SPLICEVAE.phi_prior_loss" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        phi_prior_loss
       
     </span>
   </a>
@@ -1110,6 +1208,8 @@
 and alternative splicing (junction usage). Two encoder–decoder branches (expression
 and splicing) produce posterior latents that are mixed into a shared latent space z.</p>
 <p>Reconstruction is performed per modality. Optional penalties align the two posteriors.</p>
+<p>The defaults are the settings of the paper's models (the same as :class:<code>SPLICEVI</code>'s defaults). The model class
+always passes every setting explicitly, so these defaults only matter when the module is built directly.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1363,12 +1463,12 @@ library size encoder.</p>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Latent dimensionality. If None, defaults to roughly sqrt(n_hidden).
+                <p>Latent dimensionality. If None, roughly sqrt(n_hidden).
 When modality_weights="concatenate", the mixed latent is doubled internally.</p>
               </div>
             </td>
             <td>
-                  <code>None</code>
+                  <code>30</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1418,7 +1518,7 @@ Not used by linear decoders.</p>
               </div>
             </td>
             <td>
-                  <code>0.1</code>
+                  <code>0.01</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1524,22 +1624,6 @@ covariates via n_cat_list.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>splicing_concentration</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span> or None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Optional scalar concentration for the beta binomial case.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
                 <code>dm_concentration</code>
             </td>
             <td>
@@ -1556,6 +1640,155 @@ covariates via n_cat_list.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>splicing_loss_weight</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Scalar multiplier applied to the splicing reconstruction loss before it is
+combined with the expression reconstruction loss. Values &gt; 1 upweight splicing
+relative to expression; values &lt; 1 downweight it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>lambda_prior</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Weight of the L2 penalty (torch.square(log_phi_j).sum()) pulling the learned
+per-ATSE (or scalar) log-concentration toward 0, added to the loss whenever
+splicing_loss_type is "beta_binomial" or "dirichlet_multinomial". This shrinks
+log_phi_j away from wherever it's initialized (not toward the init value) --
+ATSEs with weak/sparse reconstruction-loss gradient collapse toward this prior's
+fixed point (log_phi_j=0, i.e. phi=softplus(0)~=0.69) while ATSEs with strong
+data support resist it. Higher values shrink more aggressively; 0.0 disables it.
+Only used when <code>phi_prior="l2_log"</code>.</p>
+              </div>
+            </td>
+            <td>
+                  <code>1e-2</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>phi_floor</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Minimum concentration: <code>phi = phi_floor + softplus(log_phi_j)</code>. Additive so the
+gradient stays smooth (a clamp would kill it below the floor). 0.0 = no floor.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>phi_prior</code>
+            </td>
+            <td>
+                  <code>(<span title="l2_log">l2_log</span>, <span title="gamma">gamma</span>, <span title="none">none</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Regularizer on the concentration. <code>"l2_log"</code> is an L2 pull of
+<code>log_phi_j</code> toward 0 (weight <code>lambda_prior</code>, divided by batch size).
+<code>"gamma"</code> is a MAP Gamma(<code>phi_prior_shape</code>, <code>phi_prior_rate</code>) prior on the
+effective phi, scaled by 1/n_obs (proper MAP scaling for a per-cell-mean loss).
+<code>"none"</code> disables it.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;l2_log&#34;,&#34;gamma&#34;,&#34;none&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>psi_prior_pseudocount</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Pseudo-count prior on the decoded PSI (dirichlet_multinomial only): adds
+<code>-psi_prior_pseudocount * sum_j pi_j log p_j</code> per cell, i.e. that many virtual reads per ATSE distributed as
+the population PSI <code>pi</code> (buffer <code>psi_prior_pop</code>, filled by the model class). Entries without reads are pulled
+to the population PSI; entries with reads are dominated by their data. 0 = off.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>phi_prior_shape</code>
+            </td>
+            <td>
+                  <code>float, defaults 2.0, 0.1</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).</p>
+              </div>
+            </td>
+            <td>
+                  <code>2.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>phi_prior_rate</code>
+            </td>
+            <td>
+                  <code>float, defaults 2.0, 0.1</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Gamma prior parameters (rate parametrization; defaults give mean 20, sd ~14).</p>
+              </div>
+            </td>
+            <td>
+                  <code>2.0</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>phi_init</code>
+            </td>
+            <td>
+                  <code>(<span title="constant">constant</span>, <span title="log100">log100</span>, <span title="prior">prior</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><code>"constant"</code> starts every raw <code>log_phi_j</code> at exactly log 100 (phi ~ 4.6 after softplus).
+<code>"log100"</code> adds a random draw to that start (raw <code>log_phi_j</code> ~ N(log 100, 0.5)); the
+per-ATSE concentration is not identified from the data, so the draw only adds variance
+between replicates. <code>"prior"</code> samples phi from the Gamma prior (clamped above the floor)
+and inverts softplus.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;constant&#34;,&#34;log100&#34;,&#34;prior&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>code_dim</code>
             </td>
             <td>
@@ -1567,7 +1800,7 @@ covariates via n_cat_list.</p>
               </div>
             </td>
             <td>
-                  <code>16</code>
+                  <code>64</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1583,7 +1816,7 @@ covariates via n_cat_list.</p>
               </div>
             </td>
             <td>
-                  <code>64</code>
+                  <code>128</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1620,6 +1853,46 @@ covariates via n_cat_list.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
+                <code>psi_input</code>
+            </td>
+            <td>
+                  <code>(<span title="deviation">deviation</span>, <span title="raw">raw</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Input of the partial splicing encoder. <code>"deviation"</code>: each observed junction's PSI minus its
+read-weighted population PSI (buffer <code>pop_psi</code>, filled by the model class), the per-junction
+network's output at zero deviation is subtracted, and the pool is divided by a fixed number
+(the median number of observed junctions per training cell, buffer <code>pool_divisor</code>), so the
+pooled code does not carry the number of observed junctions. Needs <code>pool_mode="mean"</code>.
+<code>"raw"</code>: the observed PSI itself, averaged over the observed junctions.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;deviation&#34;,&#34;raw&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>decoder_depth_covariates</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Give both decoders (never the encoders) three standardized depth inputs per cell: log1p
+detected genes, log1p observed junctions and log1p library size (standardized with the
+training data's mean and standard deviation, buffers <code>depth_cov_mean</code> / <code>depth_cov_std</code>).
+Vanilla splicing decoder only.</p>
+              </div>
+            </td>
+            <td>
+                  <code>True</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
                 <code>max_nobs</code>
             </td>
             <td>
@@ -1633,6 +1906,27 @@ A negative value disables chunking.</p>
             </td>
             <td>
                   <code>-1</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_decoder_covariates</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Number of decoder covariate inputs (e.g. 1 for technology: 0 = reference data, 1 = query data). Each adds
+zero-initialized weights to the first hidden layer of both decoders (<code>decoder_covariate_weight_expression</code> and
+<code>decoder_covariate_weight_splicing</code>, one column per covariate), so at zero weights the model is unchanged. The
+value used for every cell is the buffer <code>decoder_covariate_value</code> unless <code>decoder_covariate_batch</code> (one row
+per cell) is set, as during :meth:<code>SPLICEVI.finetune_decoders</code>. Added after training by
+:meth:<code>add_decoder_covariates</code>; 0 = no covariate inputs. Vanilla decoders only.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1668,6 +1962,50 @@ stays at 0.5 (preventing one modality from dominating globally).</p>
             </td>
             <td>
                   <code>&#34;Jeffreys&#34;,&#34;MMD&#34;,&#34;None&#34;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>mask_cells_without_splicing</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>If True, a cell with no observed junction (<code>psi_observed_mask</code> all 0) is treated as
+lacking the splicing modality: it gets no splicing weight in the latent mix and is
+excluded from the modality-alignment penalty. If False (default) every cell
+always counts as having splicing, so a cell with no splicing reads still has its
+(uninformed) splicing posterior averaged into the joint latent.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>variance_mixing</code>
+            </td>
+            <td>
+                  <code>(<span title="sqrt_weights">sqrt_weights</span>, <span title="linear">linear</span>, <span title="squared">squared</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>How the two encoders' variances are combined into the joint posterior variance for
+<code>modality_weights</code> in {"equal","cell","universal","per_dimension_weighted_average"}
+(ignored for "concatenate"). The mean is always the weighted average of means.
+<code>"sqrt_weights"</code>: for equal/cell/universal the MultiVI
+heuristic sum(sqrt(w) * v) (~1.41x the average variance under equal weights); for
+per_dimension_weighted_average the rule (sum(w * std))<strong>2, the variance of an average of perfectly correlated errors.
+<code>"linear"</code> uses sum(w * v) (no inflation). <code>"squared"</code> uses sum(w</strong>2 * v), the
+variance of a weighted average of independent Gaussians (per-dimension w in the
+per-dimension mode); the default.</p>
+              </div>
+            </td>
+            <td>
+                  <code>&#34;sqrt_weights&#34;,&#34;linear&#34;,&#34;squared&#34;</code>
             </td>
           </tr>
           <tr class="doc-section-item">
@@ -1719,6 +2057,46 @@ controls the depth of the final MLP that produces latent statistics for this bra
 <div class="doc doc-object doc-function">
 
 
+<h4 id="splicevi.splicevae.SPLICEVAE.add_decoder_covariates" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">add_decoder_covariates</span><span class="p">(</span><span class="n">n_covariates</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Add <code>n_covariates</code> zero-initialized covariate inputs to the first hidden layer of both decoders.</p>
+<p>Same as appending the covariates to each decoder's input: the first layer's output gets <code>covariates @ W.T</code>
+with W = <code>decoder_covariate_weight_&lt;decoder&gt;</code> (hidden units x covariates), initialized at zero so the model's
+output is unchanged until W is trained. The value fed for every cell is <code>decoder_covariate_value</code> (buffer,
+saved with the model; zeros = reference data) unless <code>decoder_covariate_batch</code> holds one row per cell.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.splicevae.SPLICEVAE.decoder_first_layers" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">decoder_first_layers</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The first Linear layer of each decoder, which the decoder covariate inputs feed: {"expression": ..., "splicing": ...}.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="splicevi.splicevae.SPLICEVAE.dirichlet_multinomial_likelihood" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">dirichlet_multinomial_likelihood</span><span class="p">(</span><span class="n">counts</span><span class="p">,</span> <span class="n">atse_counts</span><span class="p">,</span> <span class="n">junc2atse</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
@@ -1742,7 +2120,7 @@ controls the depth of the final MLP that produces latent statistics for this bra
 
 
 <h4 id="splicevi.splicevae.SPLICEVAE.generative" class="doc doc-heading">
-            <code class="highlight language-python"><span class="n">generative</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">qz_m</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">cont_covs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cat_covs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">libsize_expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+            <code class="highlight language-python"><span class="n">generative</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="n">qz_m</span><span class="p">,</span> <span class="n">batch_index</span><span class="p">,</span> <span class="n">cont_covs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cat_covs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">libsize_expr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">use_z_mean</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">depth_cov</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
 </h4>
 
@@ -1777,6 +2155,24 @@ and splicing probabilities.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.splicevae.SPLICEVAE.get_phi" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">get_phi</span><span class="p">()</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Effective DM / beta-binomial concentration used by the loss and by DM-normalized PSI.</p>
 
 
     </div>
@@ -1844,6 +2240,27 @@ phi             – (J)     concentration parameter <em>per junction</em></p>
 <div class="doc doc-object doc-function">
 
 
+<h4 id="splicevi.splicevae.SPLICEVAE.init_log_phi" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">init_log_phi</span><span class="p">(</span><span class="n">size</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Initial raw concentration parameter. <code>size=None</code> gives the scalar DM parameter.</p>
+<p>"constant" (default): every value starts at log 100 (phi = softplus(log 100), about 4.6). "log100": the
+same start plus a random draw (per-ATSE / per-junction: N(log 100, 0.5); scalar: 4.6). "prior" samples phi
+from the Gamma prior, clamps it above the floor, and inverts softplus so <code>get_phi()</code> starts at that sample.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="splicevi.splicevae.SPLICEVAE.loss" class="doc doc-heading">
             <code class="highlight language-python"><span class="n">loss</span><span class="p">(</span><span class="n">tensors</span><span class="p">,</span> <span class="n">inference_outputs</span><span class="p">,</span> <span class="n">generative_outputs</span><span class="p">,</span> <span class="n">kl_weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span></code>
 
@@ -1880,6 +2297,24 @@ cross-entropy is used.</p>
           </tr>
       </tbody>
     </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="splicevi.splicevae.SPLICEVAE.phi_prior_loss" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">phi_prior_loss</span><span class="p">(</span><span class="n">batch_size</span><span class="p">)</span></code>
+
+</h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>Regularizer on the concentration (0.0 for non-DM/BB likelihoods or phi_prior='none').</p>
 
 
     </div>

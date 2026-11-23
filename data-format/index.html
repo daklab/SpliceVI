@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -71,7 +73,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -127,7 +129,21 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
     
   
 </form>
@@ -504,12 +520,12 @@
   <a href="#rna-modality-mdatarna" class="md-nav__link">
     <span class="md-ellipsis">
       
-        RNA modality — mdata["rna"]
+        RNA modality (mdata["rna"])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="RNA modality — mdata[&#34;rna&#34;]">
+    <nav class="md-nav" aria-label="RNA modality (mdata[&#34;rna&#34;])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -532,12 +548,12 @@
   <a href="#splicing-modality-mdatasplicing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Splicing modality — mdata["splicing"]
+        Splicing modality (mdata["splicing"])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Splicing modality — mdata[&#34;splicing&#34;]">
+    <nav class="md-nav" aria-label="Splicing modality (mdata[&#34;splicing&#34;])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -675,34 +691,6 @@
     
   
     SpliceVI
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../models/eddisplice/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    EDDISPLICE
   
 
     
@@ -1022,12 +1010,12 @@
   <a href="#rna-modality-mdatarna" class="md-nav__link">
     <span class="md-ellipsis">
       
-        RNA modality — mdata["rna"]
+        RNA modality (mdata["rna"])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="RNA modality — mdata[&#34;rna&#34;]">
+    <nav class="md-nav" aria-label="RNA modality (mdata[&#34;rna&#34;])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1050,12 +1038,12 @@
   <a href="#splicing-modality-mdatasplicing" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Splicing modality — mdata["splicing"]
+        Splicing modality (mdata["splicing"])
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Splicing modality — mdata[&#34;splicing&#34;]">
+    <nav class="md-nav" aria-label="Splicing modality (mdata[&#34;splicing&#34;])">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1143,12 +1131,12 @@
 <hr />
 <h2 id="overview">Overview</h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>MuData
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── mdata[&quot;rna&quot;]       AnnData   (cells × genes)   — gene expression
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>└── mdata[&quot;splicing&quot;]  AnnData   (cells × junctions) — splicing
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>├── mdata[&quot;rna&quot;]       AnnData   (cells × genes)       gene expression
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>└── mdata[&quot;splicing&quot;]  AnnData   (cells × junctions)   splicing
 </code></pre></div>
 <p>Both modalities share the same <code>obs</code> (cell barcodes / metadata) index. All cells must be present in both modalities.</p>
 <hr />
-<h2 id="rna-modality-mdatarna">RNA modality — <code>mdata["rna"]</code></h2>
+<h2 id="rna-modality-mdatarna">RNA modality (<code>mdata["rna"]</code>)</h2>
 <table>
 <thead>
 <tr>
@@ -1163,7 +1151,7 @@
 </tr>
 <tr>
 <td><code>.layers["length_norm"]</code></td>
-<td>Length-normalized expression: raw counts divided by transcript length and rescaled to the median transcript length across genes. Used as the model's expression input.</td>
+<td>Length-normalized expression (raw counts divided by transcript length and rescaled to the median transcript length across genes), used as the model's expression input</td>
 </tr>
 <tr>
 <td><code>.var["gene_id"]</code></td>
@@ -1180,13 +1168,13 @@
 </tbody>
 </table>
 <h3 id="length-normalization">Length normalization</h3>
-<p>The <code>length_norm</code> layer is computed as:</p>
+<p>The <code>length_norm</code> layer is computed as follows.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>length_norm = (raw_counts / transcript_length) × median(transcript_length across all genes)
 </code></pre></div>
-<p>This rescales expression to be in comparable units across genes while preserving raw-count scale for the negative binomial likelihood.</p>
+<p>This corrects for transcript length while keeping values on a count-like scale for the count likelihood (zero-inflated negative binomial by default).</p>
 <hr />
-<h2 id="splicing-modality-mdatasplicing">Splicing modality — <code>mdata["splicing"]</code></h2>
-<p>The splicing AnnData follows the <a href="https://daklab.github.io/LeafletFA/data-layer/splicingdataset/">SplicingDataset format</a> defined by LeafletFA. The required raw layers are:</p>
+<h2 id="splicing-modality-mdatasplicing">Splicing modality (<code>mdata["splicing"]</code>)</h2>
+<p>The splicing AnnData follows the <a href="https://daklab.github.io/LeafletFA/data-layer/splicingdataset/">SplicingDataset format</a> defined by LeafletFA. It needs these two layers of read counts.</p>
 <table>
 <thead>
 <tr>
@@ -1204,11 +1192,11 @@
 <tr>
 <td><code>cell_by_cluster_matrix</code></td>
 <td><code>cells × junctions</code></td>
-<td>Total read counts across all junctions in the same ATSE event (sparse); the denominator for PSI</td>
+<td>Total read counts across all junctions in the same ATSE (sparse), the denominator of PSI</td>
 </tr>
 </tbody>
 </table>
-<p>From these, three additional layers are computed during MuData assembly:</p>
+<p>Two more layers are computed from them when the MuData is assembled.</p>
 <table>
 <thead>
 <tr>
@@ -1221,19 +1209,19 @@
 <tr>
 <td><code>junc_ratio</code></td>
 <td><code>cells × junctions</code></td>
-<td>PSI values: <code>junction_counts / atse_total_counts</code>, or 0 where unobserved</td>
+<td>PSI values, <code>junction_counts / atse_total_counts</code>, or 0 where unobserved</td>
 </tr>
 <tr>
 <td><code>psi_mask</code></td>
 <td><code>cells × junctions</code></td>
-<td>Binary mask: 1 where <code>atse_total_counts &gt; 0</code> (junction is observed in that cell), 0 otherwise</td>
+<td>Binary mask, 1 where <code>atse_total_counts &gt; 0</code> (the junction is observed in that cell) and 0 otherwise</td>
 </tr>
 </tbody>
 </table>
 <h3 id="what-is-an-atse">What is an ATSE?</h3>
-<p>An <strong>Alternative Transcript Structure Event (ATSE)</strong> is a group of junctions that compete within a single splicing choice (e.g. a cassette exon skip has one skipping junction and two inclusion junctions). All junctions belonging to the same ATSE share the same <code>cell_by_cluster_matrix</code> denominator value within a cell.</p>
+<p>An <strong>alternative transcript structure event (ATSE)</strong> is a group of junctions in a gene that compete at shared splice sites. Two junctions belong to the same ATSE if they share a donor or an acceptor site (connected through other junctions of the ATSE). A cassette exon, for example, is one ATSE with a skipping junction and two inclusion junctions. Junctions that share no splice site with another junction are not part of any ATSE. All junctions of the same ATSE share the same <code>cell_by_cluster_matrix</code> value within a cell, and the model's junction usages within an ATSE sum to 1.</p>
 <h3 id="psi-mask">PSI mask</h3>
-<p>The <code>psi_mask</code> is critical to correct model behavior. SpliceVI's partial encoder processes <strong>only observed junctions</strong> (mask = 1) per cell, completely ignoring positions where <code>psi_mask = 0</code>. This is what allows the model to handle the 70–95% sparsity typical in single-cell splicing data without any imputation at the input level. </p>
+<p>The <code>psi_mask</code> tells the model which values are observed. SpliceVI's partial encoder processes <strong>only observed junctions</strong> (mask = 1) in each cell and ignores positions where <code>psi_mask = 0</code>, and the splicing likelihood is evaluated on observed ATSEs only. Unobserved junctions are therefore treated as missing, not as zero usage. </p>
 <h3 id="var-metadata">var metadata</h3>
 <table>
 <thead>
@@ -1245,11 +1233,11 @@
 <tbody>
 <tr>
 <td><code>junction_id</code></td>
-<td>Unique junction identifier (e.g. <code>chr:start:end:strand</code>)</td>
+<td>Unique junction identifier, <code>chrom_start_end_strand</code> (e.g. <code>chr1_52199887_52207300_-</code>)</td>
 </tr>
 <tr>
 <td><code>event_id</code></td>
-<td>ATSE group identifier (shared across all junctions in the same event)</td>
+<td>ATSE identifier (shared by all junctions of the same ATSE)</td>
 </tr>
 <tr>
 <td><code>modality</code></td>
@@ -1259,7 +1247,7 @@
 </table>
 <hr />
 <h2 id="shared-obs-metadata">Shared obs metadata</h2>
-<p><code>mdata.obs</code> is the union of obs columns from both modalities. Typical columns include:</p>
+<p><code>mdata.obs</code> is the union of obs columns from both modalities. Typical columns are listed below.</p>
 <table>
 <thead>
 <tr>
@@ -1293,13 +1281,10 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">mdata</span> <span class="o">=</span> <span class="n">mudata</span><span class="o">.</span><span class="n">read_h5mu</span><span class="p">(</span><span class="s2">&quot;train_70_30_combined.h5mu&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">mdata</span><span class="p">,</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">rna_layer</span><span class="o">=</span><span class="s2">&quot;length_norm&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">batch_key</span><span class="o">=</span><span class="s2">&quot;mouse.id&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">n_latent</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># The layer and modality names above are the defaults, so only the batch key is given here.</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">batch_key</span><span class="o">=</span><span class="s2">&quot;mouse.id&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
 </code></pre></div>
 <p>See <a href="../getting-started/">Getting Started</a> for a full training example.</p>
 

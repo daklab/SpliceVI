@@ -1,0 +1,44 @@
+/* Colors of the paper's figures (SpliceVI-utils manuscript/paper/paper_config.yaml):
+   teal = SpliceVI, indigo = gene expression, yellow = splicing. */
+
+:root {
+  --splicevi-teal: #006865;
+  --splicevi-teal-dark: #004f4c;
+  --splicevi-teal-light: #5fb3ae;
+  --splicevi-teal-tint: #e3f0ef;
+  --splicevi-indigo: #657bb5;
+  --splicevi-yellow: #f2be2e;
+  --splicevi-ink: #222222;
+}
+
+/* Light scheme */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: var(--splicevi-teal);
+  --md-primary-fg-color--light: var(--splicevi-teal-light);
+  --md-primary-fg-color--dark: var(--splicevi-teal-dark);
+  --md-accent-fg-color: var(--splicevi-indigo);
+  --md-typeset-color: var(--splicevi-ink);
+  --md-typeset-a-color: var(--splicevi-teal);
+
+  --md-mermaid-node-bg-color: var(--splicevi-teal-tint);
+  --md-mermaid-node-fg-color: var(--splicevi-teal);
+  --md-mermaid-edge-color: var(--splicevi-ink);
+  --md-mermaid-label-fg-color: var(--splicevi-ink);
+}
+
+/* Dark scheme: the same teal header, lighter teal for links so they read on the dark background */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: var(--splicevi-teal);
+  --md-primary-fg-color--light: var(--splicevi-teal-light);
+  --md-primary-fg-color--dark: var(--splicevi-teal-dark);
+  --md-accent-fg-color: var(--splicevi-yellow);
+  --md-typeset-a-color: var(--splicevi-teal-light);
+
+  --md-mermaid-node-bg-color: #12302f;
+  --md-mermaid-node-fg-color: var(--splicevi-teal-light);
+}
+
+/* A thin darker-teal line under the header tabs */
+.md-tabs {
+  border-bottom: 3px solid var(--splicevi-teal-dark);
+}

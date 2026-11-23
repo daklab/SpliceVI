@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -71,7 +73,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -127,7 +129,21 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
     
   
 </form>
@@ -517,34 +533,6 @@
     
   
     SpliceVI
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../../models/eddisplice/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    EDDISPLICE
   
 
     
@@ -1044,25 +1032,27 @@
 
 
 <h1 id="differential-expression-splicing">Differential Expression &amp; Splicing</h1>
-<p>SpliceVI supports both <strong>differential gene expression (DE)</strong> and <strong>differential splicing (DS)</strong> analysis between groups of cells. Both use the same underlying Bayesian framework from scvi-tools — they differ only in what quantity is being compared and how the effect size is defined. The API mirrors <a href="https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html">MultiVI</a>, with <code>differential_splicing</code> and <code>get_normalized_splicing</code> replacing the chromatin accessibility equivalents.</p>
+<p>SpliceVI supports both <strong>differential gene expression (DE)</strong> and <strong>differential splicing (DS)</strong> analysis between groups of cells. Both use the same underlying Bayesian framework from scvi-tools and differ only in what quantity is being compared and how the effect size is defined. The API mirrors <a href="https://docs.scvi-tools.org/en/1.3.3/user_guide/models/multivi.html">MultiVI</a>, with <code>differential_splicing</code> and <code>get_normalized_splicing</code> replacing the chromatin accessibility equivalents.</p>
 <p>For full background on the statistical framework, see the <a href="https://docs.scvi-tools.org/en/1.3.3/user_guide/background/differential_expression.html">scvi-tools differential expression guide</a>.</p>
 <hr />
 <h2 id="how-it-works">How it works</h2>
-<p>Both DE and DS use <code>_de_core</code> from scvi-tools internally. The key idea is:</p>
+<p>Both DE and DS use <code>_de_core</code> from scvi-tools internally, in three steps.</p>
 <ol>
 <li><strong>Sample normalized values</strong> from the posterior for each cell in group 1 and group 2 separately, by passing cells through the encoder and then the relevant decoder (expression or splicing)</li>
 <li><strong>Compute a per-feature effect size</strong> from those posterior samples</li>
-<li><strong>Estimate the posterior probability</strong> that the effect size exceeds a threshold <span class="arithmatex">\(\delta\)</span> (the <code>"change"</code> mode)</li>
+<li><strong>Estimate the posterior probability</strong> that the effect size is at least <span class="arithmatex">\(\delta\)</span> in one direction (the <code>"change"</code> mode)</li>
 </ol>
-<p>The per-feature Bayes factor is then:</p>
+<p>Each feature is scored by the larger of the two one-sided probabilities, and its log Bayes factor follows from it,</p>
 <div class="arithmatex">\[
-\text{BF} = \log \frac{P(|\Delta| &gt; \delta \mid \text{data})}{P(|\Delta| \leq \delta \mid \text{data})}
+p = \max\{P(\Delta \geq \delta \mid \text{data}),\ P(\Delta \leq -\delta \mid \text{data})\}, \qquad
+\text{BF} = \log \frac{p}{1 - p}
 \]</div>
-<p>An FDR-controlled call of differential features is made using a target FDR threshold (default 5%).</p>
+<p>Features are called at a posterior expected false discovery rate (default 5%). The calls are the largest set of
+features, taken in order of decreasing <span class="arithmatex">\(p\)</span>, whose mean <span class="arithmatex">\(1 - p\)</span> is at most that rate.</p>
 <hr />
 <h2 id="differential-expression">Differential Expression</h2>
-<p>DE compares <strong>normalized gene expression</strong> between two groups using <code>get_normalized_expression</code> (see <a href="../imputed/">Imputed Splicing &amp; Expression</a>).</p>
-<p>The <strong>effect size</strong> follows the standard scVI convention — a log-fold change:</p>
+<p>DE compares <strong>normalized gene expression</strong> between two groups. By default (<code>norm_expression_function="zinb_expected"</code>) this is the ZINB expected expression, (1 − dropout probability) × the decoder output (<code>get_normalized_expression(expected=True)</code>, see <a href="../imputed/">Imputed Splicing &amp; Expression</a>). With a ZINB likelihood the dropout probability can absorb part of a difference between groups, which the decoder output alone then misses. <code>norm_expression_function="decoder"</code> compares the decoder output, as scVI and MultiVI do, and <code>"zinb_posterior_mean"</code> and <code>"zinb_posterior_sample"</code> use each cell's ZINB posterior given its observed counts.</p>
+<p>The <strong>effect size</strong> follows the standard scVI convention, a log-fold change,</p>
 <div class="arithmatex">\[
 \text{LFC} = \log_2(\hat{x}^{(2)}_g + \epsilon) - \log_2(\hat{x}^{(1)}_g + \epsilon)
 \]</div>
@@ -1074,15 +1064,16 @@
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>    <span class="n">group2</span><span class="o">=</span><span class="s2">&quot;Astrocyte&quot;</span><span class="p">,</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    <span class="n">delta</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>    <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="p">)</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    <span class="n">norm_expression_function</span><span class="o">=</span><span class="s2">&quot;zinb_expected&quot;</span><span class="p">,</span>   <span class="c1"># the default</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="p">)</span>
 </code></pre></div>
 <hr />
 <h2 id="differential-splicing">Differential Splicing</h2>
-<p>DS compares <strong>junction usage (PSI)</strong> between two groups. Because PSI is already on a <span class="arithmatex">\([0, 1]\)</span> probability scale, the effect size is a <strong>direct difference</strong> rather than a log-fold change — analogous to how ATAC-seq accessibility scores are handled in scvi-tools:</p>
+<p>DS compares <strong>junction usage (PSI)</strong> between two groups. Because PSI is already on a <span class="arithmatex">\([0, 1]\)</span> probability scale, the effect size is a <strong>direct difference</strong> rather than a log-fold change, as for ATAC-seq accessibility scores in scvi-tools,</p>
 <div class="arithmatex">\[
 \text{effect size} = \hat{\psi}^{(2)}_j - \hat{\psi}^{(1)}_j
 \]</div>
-<p>where <span class="arithmatex">\(\hat{\psi}^{(k)}_j\)</span> is the posterior mean PSI for junction <span class="arithmatex">\(j\)</span> in group <span class="arithmatex">\(k\)</span>, computed using the <a href="../imputed/#dm-normalized-splicing-posterior-mean-psi">DM posterior mean</a> by default (<code>norm_splicing_function="dm_posterior_mean"</code>). You can switch to the raw decoder output with <code>norm_splicing_function="decoder"</code>.</p>
+<p>where <span class="arithmatex">\(\hat{\psi}^{(k)}_j\)</span> is the PSI for junction <span class="arithmatex">\(j\)</span> in group <span class="arithmatex">\(k\)</span>. By default (<code>norm_splicing_function="dm_posterior_sample"</code>) each Monte Carlo sample draws every cell's PSI from its <a href="../imputed/#dm-normalized-splicing-posterior-mean-psi">DM posterior</a>, so per-cell read uncertainty enters <code>proba_ds</code>. <code>norm_splicing_function="dm_posterior_mean"</code> uses the posterior mean instead, and <code>norm_splicing_function="decoder"</code> the decoder output alone.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">ds_results</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">differential_splicing</span><span class="p">(</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="n">adata</span><span class="o">=</span><span class="n">mdata</span><span class="p">,</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">groupby</span><span class="o">=</span><span class="s2">&quot;cell_type&quot;</span><span class="p">,</span>
@@ -1090,7 +1081,7 @@
 <a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>    <span class="n">group2</span><span class="o">=</span><span class="s2">&quot;Astrocyte&quot;</span><span class="p">,</span>
 <a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    <span class="n">delta</span><span class="o">=</span><span class="mf">0.10</span><span class="p">,</span>
 <a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>    <span class="n">fdr_target</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">norm_splicing_function</span><span class="o">=</span><span class="s2">&quot;dm_posterior_mean&quot;</span><span class="p">,</span>   <span class="c1"># recommended</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    <span class="n">norm_splicing_function</span><span class="o">=</span><span class="s2">&quot;dm_posterior_sample&quot;</span><span class="p">,</span>   <span class="c1"># the default</span>
 <a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="p">)</span>
 </code></pre></div>
 <h3 id="output-columns">Output columns</h3>
@@ -1139,8 +1130,10 @@
 <hr />
 <h2 id="notes">Notes</h2>
 <ul>
-<li>Very sparse junctions (low <code>n_obs_group1/2</code>) will have wider posteriors — consider filtering before interpretation</li>
+<li>The paper keeps a differential splicing call only when its ATSE has reads in at least three cells (or metacells) of each group. Apply this with <code>splicevi.filter_read_support(ds_results, min_units=3)</code>, which does not change the FDR calls themselves</li>
 <li>Both methods support <code>batch_correction=True</code> to marginalize over batch effects when comparing groups</li>
+<li><code>proba_ds</code> / <code>proba_de</code> are Monte Carlo estimates. Pass <code>seed=</code> (for example <code>seed=0</code>) to get the same table on repeated calls</li>
+<li>Features with equal posterior probability keep their order in the data, both in the row order of the DE table and in which of them are called when they are tied at the FDR cutoff, so the calls are the same on every machine</li>
 </ul>
 
 

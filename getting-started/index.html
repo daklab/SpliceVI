@@ -55,6 +55,8 @@
     
       <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
     <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -71,7 +73,7 @@
     
     
     
-    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green">
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom">
   
     
     <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
@@ -127,7 +129,21 @@
     
     
     
-    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="light-green"  aria-hidden="true"  type="radio" name="__palette" id="__palette_0">
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
     
   
 </form>
@@ -677,34 +693,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../models/eddisplice/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    EDDISPLICE
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1130,18 +1118,21 @@
 <p>This installs all dependencies from <code>pyproject.toml</code>. After installation, <code>from splicevi import SPLICEVI</code> works from any script or notebook.</p>
 <hr />
 <h2 id="data-format">Data format</h2>
-<p>SpliceVI expects a <a href="https://mudata.readthedocs.io/">MuData</a> object with two modalities:</p>
+<p>SpliceVI expects a <a href="https://mudata.readthedocs.io/">MuData</a> object with two modalities that hold the same cells:</p>
 <ul>
-<li><code>rna</code> — raw gene expression counts <code>(cells × genes)</code></li>
-<li><code>splice</code> — junction usage ratios (PSI values) <code>(cells × junctions)</code></li>
+<li><code>rna</code> holds gene expression <code>(cells × genes)</code>. The model reads <code>layers["length_norm"]</code>, and the library size of each
+  cell is in <code>mdata.obsm["X_library_size"]</code>.</li>
+<li><code>splicing</code> holds the junctions <code>(cells × junctions)</code>, with these layers:<ul>
+<li><code>cell_by_junction_matrix</code>, the reads of each junction</li>
+<li><code>cell_by_cluster_matrix</code>, the reads of the junction's ATSE, repeated for each junction of the ATSE</li>
+<li><code>junc_ratio</code>, the junction usage (PSI), which is junction reads / ATSE reads and 0 where the ATSE has no reads</li>
+<li><code>psi_mask</code>, which is 1 where the ATSE has reads in the cell and 0 otherwise</li>
 </ul>
-<p>The splicing modality also requires:</p>
-<ul>
-<li><code>junc_counts</code> — integer junction read counts <code>(cells × junctions)</code></li>
-<li><code>atse_counts</code> — total read counts at the ATSE level <code>(cells × junctions)</code></li>
-<li><code>psi_observed_mask</code> — binary mask indicating which junctions are observed per cell</li>
+</li>
 </ul>
-<p>See the <a href="https://daklab.github.io/LeafletFA/data-layer/splicingdataset/">SplicingDataset</a> documentation in LeafletFA for utilities to construct this format from raw data.</p>
+<p>Its <code>var["event_id"]</code> gives the ATSE each junction belongs to.</p>
+<p>These are the default names of <code>SPLICEVI.setup_mudata</code>, and other names can be passed to it. The
+<a href="../data-format/">SpliceVI MuData Object</a> page describes every field. See the <a href="https://daklab.github.io/LeafletFA/data-layer/splicingdataset/">SplicingDataset</a> documentation in LeafletFA for utilities to construct this format from raw data.</p>
 <hr />
 <h2 id="training">Training</h2>
 <h3 id="using-the-python-api">Using the Python API</h3>
@@ -1150,46 +1141,39 @@
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">mdata</span> <span class="o">=</span> <span class="n">mudata</span><span class="o">.</span><span class="n">read_h5mu</span><span class="p">(</span><span class="s2">&quot;train_data.h5mu&quot;</span><span class="p">)</span>
 <a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="n">mdata</span><span class="p">,</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="n">rna_layer</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>           <span class="c1"># use .X for raw counts</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>    <span class="n">batch_key</span><span class="o">=</span><span class="s2">&quot;mouse.id&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="p">)</span>
-<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>
-<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span>
-<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>    <span class="n">mdata</span><span class="p">,</span>
-<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>    <span class="n">n_latent</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>    <span class="n">splicing_loss_type</span><span class="o">=</span><span class="s2">&quot;dirichlet_multinomial&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>    <span class="n">splicing_encoder_architecture</span><span class="o">=</span><span class="s2">&quot;partial&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>    <span class="n">modality_weights</span><span class="o">=</span><span class="s2">&quot;equal&quot;</span><span class="p">,</span>
-<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="p">)</span>
-<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a>
-<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
-<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a>    <span class="n">max_epochs</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
-<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>    <span class="n">batch_size</span><span class="o">=</span><span class="mi">256</span><span class="p">,</span>
-<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a>    <span class="n">n_epochs_kl_warmup</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
-<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a>    <span class="n">lr</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
-<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="p">)</span>
-<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>
-<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;models/my_run/&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># Layer and modality names default to the layout in &quot;SpliceVI MuData Object&quot;;</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># pass e.g. rna_layer=&quot;raw_counts&quot; if your expression counts are in another layer.</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="n">SPLICEVI</span><span class="o">.</span><span class="n">setup_mudata</span><span class="p">(</span><span class="n">mdata</span><span class="p">,</span> <span class="n">batch_key</span><span class="o">=</span><span class="s2">&quot;mouse.id&quot;</span><span class="p">)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="c1"># The defaults are the paper&#39;s model and training settings.</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="p">(</span><span class="n">mdata</span><span class="p">)</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="n">model</span><span class="o">.</span><span class="n">train</span><span class="p">()</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="n">model</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="s2">&quot;models/my_run/&quot;</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="using-the-slurm-script">Using the SLURM script</h3>
-<p>Configure paths and hyperparameters at the top of <code>train_splicevi.sh</code>, then:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sbatch<span class="w"> </span>train_splicevi.sh
+<p><code>train_splicevi.py</code> trains one model from a MuData file. Every argument of <code>SPLICEVI(...)</code> and <code>train()</code> is also a
+command-line flag, and flags left out keep the paper defaults.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>train_splicevi.py<span class="w"> </span>--train_mdata_path<span class="w"> </span>train_data.h5mu<span class="w"> </span>--model_dir<span class="w"> </span>models/my_run<span class="w"> </span>--batch_key<span class="w"> </span>mouse.id<span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>python<span class="w"> </span>train_splicevi.py<span class="w"> </span>--help<span class="w">     </span><span class="c1"># all flags with their defaults</span>
+</code></pre></div>
+<p><code>train_splicevi.sh</code> runs the same command as a SLURM job. Set the data path, output folder and batch key at its top
+(other settings go in its <code>EXTRA_ARGS</code> line, for example <code>EXTRA_ARGS="--max_epochs 100 --lr 5e-4"</code>) and submit it.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>logs<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sbatch<span class="w"> </span>train_splicevi.sh
 </code></pre></div>
 <hr />
 <h2 id="extracting-outputs">Extracting outputs</h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;models/my_run/&quot;</span><span class="p">,</span> <span class="n">adata</span><span class="o">=</span><span class="n">mdata</span><span class="p">)</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># Joint latent representation</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">latent</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">()</span>          <span class="c1"># (cells × n_latent)</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># Modality-specific latents</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">z_expr</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">(</span><span class="n">modality</span><span class="o">=</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="n">z_spl</span>  <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">(</span><span class="n">modality</span><span class="o">=</span><span class="s2">&quot;splicing&quot;</span><span class="p">)</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
-<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1"># Imputed PSI values</span>
-<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">psi</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_normalized_splicing</span><span class="p">()</span>               <span class="c1"># (cells × junctions)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">model</span> <span class="o">=</span> <span class="n">SPLICEVI</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;models/my_run/&quot;</span><span class="p">,</span> <span class="n">adata</span><span class="o">=</span><span class="n">mdata</span><span class="p">)</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Joint latent representation</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">latent</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">()</span>          <span class="c1"># (cells × n_latent)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># Modality-specific latents</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">z_expr</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">(</span><span class="n">modality</span><span class="o">=</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">z_spl</span>  <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_latent_representation</span><span class="p">(</span><span class="n">modality</span><span class="o">=</span><span class="s2">&quot;splicing&quot;</span><span class="p">)</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># Imputed PSI values: posterior mean junction usage given each cell&#39;s reads</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="n">psi</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">get_normalized_splicing_DM</span><span class="p">()</span>            <span class="c1"># (cells × junctions)</span>
 </code></pre></div>
 
 
