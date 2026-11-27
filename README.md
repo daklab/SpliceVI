@@ -71,8 +71,8 @@ psi = model.get_normalized_splicing_DM()
 # Differential splicing and expression between two groups of cells
 ds = model.differential_splicing(groupby="cell_type", group1="Neuron", group2="Astrocyte", seed=0)
 de = model.differential_expression(groupby="cell_type", group1="Neuron", group2="Astrocyte", seed=0)
-ds_calls = ds[ds["is_ds_fdr"]]          # junctions called at 5% FDR (|delta PSI| > 0.1)
-de_calls = de[de["is_de_fdr_0.05"]]     # genes called at 5% FDR
+ds_junctions = ds[ds["is_ds_fdr"]]      # DS junctions at 5% FDR (|delta PSI| > 0.1)
+de_genes = de[de["is_de_fdr_0.05"]]     # DE genes at 5% FDR
 ```
 
 A saved model is loaded with `SPLICEVI.load("models/my_model", adata=mdata)`.
@@ -106,7 +106,7 @@ junction read counts, is on the [data format page](https://daklab.github.io/Spli
   Tabula Muris Senis models (batch correction over mice); `SPLICEVI.preset("sparse")` gives the settings of the models
   for sparse data.
 - **Differential splicing** compares junction usage between the groups. Each junction is scored by the posterior
-  probability that ΔPSI is at least `delta` (default 0.1) in one direction, and junctions are called at a posterior
+  probability that ΔPSI is at least `delta` (default 0.1) in one direction, and DS junctions are those significant at a posterior
   expected false discovery rate of `fdr_target` (default 0.05). By default
   each Monte Carlo sample draws every cell's PSI from its Dirichlet-multinomial posterior
   (`norm_splicing_function="dm_posterior_sample"`). `n_obs_group1` / `n_obs_group2` count the cells with reads for the
@@ -116,7 +116,7 @@ junction read counts, is on the [data format page](https://daklab.github.io/Spli
   (`norm_expression_function="zinb_expected"`). The dropout probability can absorb part of a difference between groups,
   and this setting largely corrects the fold changes that the decoder output alone would shrink.
 - **Repeatable results.** Pass `seed=` to `differential_splicing` / `differential_expression` for the same table on
-  every call. Setting `scvi.settings.seed` before building the model makes training repeatable on the same machine
+  every run. Setting `scvi.settings.seed` before building the model makes training repeatable on the same machine
   (results on a GPU can still differ slightly between runs).
 - **Transfer to a sparse atlas.** `model.finetune_decoders(query_mdata, reference_mdata)` adapts a trained model to new
   data by training only its decoders (and a technology covariate) while keeping the latent space fixed.

@@ -116,5 +116,6 @@ def preset(name, atlas=None, joint=False):
 
 
 def filter_read_support(ds, min_units=3):
-    """Keep junctions observed in at least min_units units of each group. Applied after calling, so the FDR rule itself is unchanged."""
+    """Keep junctions observed in at least min_units cells (or metacells) of each group. Applied after the FDR step, so which
+    junctions are significant is unchanged."""
     return ds[(ds["n_obs_group1"] >= min_units) & (ds["n_obs_group2"] >= min_units)]

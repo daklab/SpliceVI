@@ -21,8 +21,8 @@ p = \max\{P(\Delta \geq \delta \mid \text{data}),\ P(\Delta \leq -\delta \mid \t
 \text{BF} = \log \frac{p}{1 - p}
 $$
 
-Features are called at a posterior expected false discovery rate (default 5%). The calls are the largest set of
-features, taken in order of decreasing $p$, whose mean $1 - p$ is at most that rate.
+Significance is set at a posterior expected false discovery rate (default 5%). The DS junctions (or DE genes) are the
+largest set of features, taken in order of decreasing $p$, whose mean $1 - p$ is at most that rate.
 
 ---
 
@@ -79,7 +79,7 @@ ds_results = model.differential_splicing(
 | Column | Description |
 |--------|-------------|
 | `proba_ds` | Posterior probability of differential splicing |
-| `is_ds_fdr` | Boolean FDR-controlled call at `fdr_target` |
+| `is_ds_fdr` | True for DS junctions, significant at `fdr_target` |
 | `bayes_factor` | Log Bayes factor |
 | `effect_size` | $\hat{\psi}^{(2)} - \hat{\psi}^{(1)}$ (model posterior means) |
 | `emp_effect` | Empirical $\bar{\psi}^{(2)} - \bar{\psi}^{(1)}$ from observed PSI values |
@@ -91,7 +91,7 @@ ds_results = model.differential_splicing(
 
 ## Notes
 
-- The paper keeps a differential splicing call only when its ATSE has reads in at least three cells (or metacells) of each group. Apply this with `splicevi.filter_read_support(ds_results, min_units=3)`, which does not change the FDR calls themselves
+- In the paper, a DS junction enters validation only when its ATSE has reads in at least three cells (or metacells) of each group. Apply this with `splicevi.filter_read_support(ds_results, min_units=3)`, which does not change which junctions are significant
 - Both methods support `batch_correction=True` to marginalize over batch effects when comparing groups
-- `proba_ds` / `proba_de` are Monte Carlo estimates. Pass `seed=` (for example `seed=0`) to get the same table on repeated calls
-- Features with equal posterior probability keep their order in the data, both in the row order of the DE table and in which of them are called when they are tied at the FDR cutoff, so the calls are the same on every machine
+- `proba_ds` / `proba_de` are Monte Carlo estimates. Pass `seed=` (for example `seed=0`) to get the same table every time
+- Features with equal posterior probability keep their order in the data, both in the row order of the DE table and in which of them are significant when they are tied at the FDR cutoff, so the results are the same on every machine

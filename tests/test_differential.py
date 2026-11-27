@@ -1,4 +1,4 @@
-"""Tests of differential expression and splicing: FDR calls with tied probabilities, the seed argument, and the
+"""Tests of differential expression and splicing: FDR significance with tied probabilities, the seed argument, and the
 errors for unsupported input. Uses the small random MuData of small_data.py, so it runs anywhere (CPU, a few seconds)."""
 import anndata as ad
 import numpy as np
@@ -7,7 +7,7 @@ import pytest
 from scvi.model.base._de_core import _fdr_de_prediction
 
 from splicevi import SPLICEVI
-from splicevi.splicevi import _fdr_calls
+from splicevi.splicevi import _significant_at_fdr
 from small_data import small_mudata
 
 
@@ -22,21 +22,21 @@ def trained():
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# FDR calls.
+# Significance at a target FDR.
 # ----------------------------------------------------------------------------------------------------------------------
 
-def test_fdr_calls_match_scvi_without_ties():
+def test_significance_matches_scvi_without_ties():
     probabilities = pd.Series(np.random.default_rng(1).random(500), index=[f"f{i}" for i in range(500)])
-    assert _fdr_calls(probabilities, 0.05).equals(_fdr_de_prediction(probabilities, 0.05))
+    assert _significant_at_fdr(probabilities, 0.05).equals(_fdr_de_prediction(probabilities, 0.05))
 
 
-def test_fdr_calls_with_ties_keep_the_number_of_calls_and_take_the_first_tied_features():
-    # Four features tied at 0.9: at FDR 0.04 the rule allows 3 calls (both 1.0s and one of the 0.9s, since the mean
-    # of (1 - probability) is 0.033 for three features and 0.05 for four), and the first 0.9 in the input is called.
+def test_significance_with_ties_keeps_the_count_and_takes_the_first_tied_features():
+    # Four features tied at 0.9: at FDR 0.04 the rule keeps 3 features (both 1.0s and one of the 0.9s, since the mean
+    # of (1 - probability) is 0.033 for three features and 0.05 for four), and the first 0.9 in the input is the one kept.
     probabilities = pd.Series([0.9, 1.0, 0.9, 0.2, 0.9, 1.0, 0.9], index=list("abcdefg"))
-    calls = _fdr_calls(probabilities, 0.04)
-    assert calls.sum() == _fdr_de_prediction(probabilities, 0.04).sum() == 3
-    assert list(calls[calls].index) == ["a", "b", "f"]
+    significant = _significant_at_fdr(probabilities, 0.04)
+    assert significant.sum() == _fdr_de_prediction(probabilities, 0.04).sum() == 3
+    assert list(significant[significant].index) == ["a", "b", "f"]
 
 
 # ----------------------------------------------------------------------------------------------------------------------

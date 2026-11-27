@@ -59,33 +59,33 @@ def _psi_absolute_change_fn(scales_1: np.ndarray, scales_2: np.ndarray, pseudoco
     return scales_2 - scales_1
 
 
-def _fdr_calls(posterior_probabilities: pd.Series, fdr: float) -> pd.Series:
-    """Features called differential at a target posterior expected FDR, with ties broken by feature order.
+def _significant_at_fdr(posterior_probabilities: pd.Series, fdr: float) -> pd.Series:
+    """Features significant at a target posterior expected FDR, with ties broken by feature order.
 
-    Same rule as scvi-tools' ``_fdr_de_prediction``: sort features by posterior probability (highest first) and call
+    Same rule as scvi-tools' ``_fdr_de_prediction``: sort features by posterior probability (highest first) and keep
     the longest leading run whose mean (1 - probability) is at most ``fdr``. scvi-tools sorts with an unstable sort,
-    so when several features share the probability at the cutoff, which of them are called depends on the CPU's sort
+    so when several features share the probability at the cutoff, which of them are kept depends on the CPU's sort
     implementation (it differs between machines with and without AVX-512). A stable sort keeps tied features in their
-    input order, so the calls are the same on every machine. The number of calls is unchanged.
+    input order, so the result is the same on every machine. The number of significant features is unchanged.
     """
     probabilities = posterior_probabilities.to_numpy()
     order = np.argsort(-probabilities, kind="stable")
 
     sorted_probabilities = probabilities[order]
     cumulative_fdr = np.cumsum(1.0 - sorted_probabilities) / (1.0 + np.arange(len(sorted_probabilities)))
-    n_calls = int((cumulative_fdr <= fdr).sum())
+    n_significant = int((cumulative_fdr <= fdr).sum())
 
-    calls = np.zeros(len(probabilities), dtype=bool)
-    calls[order[:n_calls]] = True
-    return pd.Series(calls, index=posterior_probabilities.index)
+    significant = np.zeros(len(probabilities), dtype=bool)
+    significant[order[:n_significant]] = True
+    return pd.Series(significant, index=posterior_probabilities.index)
 
 
-def _sort_and_call_stably(result: pd.DataFrame, feature_names, mode: str, fdr: float) -> pd.DataFrame:
-    """Re-sort a ``_de_core`` table and recompute its FDR calls with stable sorts (see :func:`_fdr_calls`).
+def _sort_and_flag_stably(result: pd.DataFrame, feature_names, mode: str, fdr: float) -> pd.DataFrame:
+    """Re-sort a ``_de_core`` table and recompute its FDR flags with stable sorts (see :func:`_significant_at_fdr`).
 
     ``_de_core`` returns each comparison sorted by ``proba_de`` (or ``bayes_factor`` in ``"vanilla"`` mode) with an
     unstable sort. Here each comparison is put back in feature order and sorted again with a stable sort, so that tied
-    features keep their feature order, and the FDR calls are recomputed with :func:`_fdr_calls`. All other values are
+    features keep their feature order, and the FDR flags are recomputed with :func:`_significant_at_fdr`. All other values are
     unchanged.
     """
     sort_column = "proba_de" if mode == "change" else "bayes_factor"
@@ -101,7 +101,7 @@ def _sort_and_call_stably(result: pd.DataFrame, feature_names, mode: str, fdr: f
         table = table.loc[feature_names]
         table = table.iloc[np.argsort(-table[sort_column].to_numpy(), kind="stable")].copy()
         if mode == "change":
-            table[flag_column] = _fdr_calls(table["proba_de"], fdr)
+            table[flag_column] = _significant_at_fdr(table["proba_de"], fdr)
         sorted_comparisons.append(table)
     return pd.concat(sorted_comparisons, axis=0)
 
@@ -1390,7 +1390,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             :math:`\psi_j \sim \mathrm{Beta}(c p_j + y_j,\ c (1 - p_j) + n - y_j)` (the Beta marginal of the
             Dirichlet posterior, whose mean is :math:`\psi^\*`) instead of its mean. Used by DS with
             ``norm_splicing_function="dm_posterior_sample"``: junctions with few reads get wide draws, so they are not
-            called on the decoder prediction alone.
+            found significant on the decoder prediction alone.
 
         Returns
         -------
@@ -1722,7 +1722,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
             The two posterior options need ``gene_likelihood="zinb"``.
         seed
-            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated calls give the
+            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated runs give the
             same table. This seeds PyTorch, NumPy and Python's ``random`` for the whole session. Default ``None``
             leaves the random state as it is.
         **kwargs
@@ -1731,7 +1731,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         Returns
         -------
         A pandas DataFrame with differential expression results, sorted by ``proba_de`` (highest first). Features with
-        equal ``proba_de`` keep their order in the data, and the FDR calls use the same order, so the table is the same
+        equal ``proba_de`` keep their order in the data, and the FDR flags use the same order, so the table is the same
         on every machine.
         """
         self._check_adata_modality_weights(adata)
@@ -1796,7 +1796,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             silent=silent,
             **kwargs,
         )
-        return _sort_and_call_stably(result, col_names, mode, fdr_target)
+        return _sort_and_flag_stably(result, col_names, mode, fdr_target)
 
 
     @de_dsp.dedent
@@ -1856,9 +1856,9 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
 
             ``delta`` (default 0.1) is a threshold on the absolute difference in junction usage. The paper also keeps
             only junctions observed in at least 3 cells of each group; apply that with
-            :func:`~splicevi.filter_read_support` on the returned table (it does not change the FDR calls).
+            :func:`~splicevi.filter_read_support` on the returned table (it does not change which junctions are significant).
         seed
-            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated calls give the
+            If given, ``scvi.settings.seed`` is set to this value before sampling, so that repeated runs give the
             same table. This seeds PyTorch, NumPy and Python's ``random`` for the whole session. Default ``None``
             leaves the random state as it is.
         **kwargs
@@ -1867,8 +1867,8 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
         Returns
         -------
         A pandas DataFrame with differential splicing results, one row per junction in the order of the data. Among
-        junctions with equal ``proba_ds`` at the FDR cutoff, the ones earlier in the data are called, so the calls are
-        the same on every machine.
+        junctions with equal ``proba_ds`` at the FDR cutoff, the ones earlier in the data are significant, so the
+        result is the same on every machine.
         """
 
         def scsplicing_ratio_properties(
@@ -1994,7 +1994,7 @@ class SPLICEVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass, ArchesMixin)
             pseudocounts=1e-6,
             **kwargs,
         )
-        result = _sort_and_call_stably(result, col_names, mode, fdr_target)
+        result = _sort_and_flag_stably(result, col_names, mode, fdr_target)
         result = pd.DataFrame(
             {
                 "proba_ds": result.proba_de,
